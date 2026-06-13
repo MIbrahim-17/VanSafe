@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ChildForm, { type ChildValues } from "./ChildForm";
+import AttendanceToggle from "./AttendanceToggle";
 import { MapPin, Message, Pencil, Trash } from "./icons";
 import { deriveStatus, googleMapsLink, relativeTime, whatsappLink } from "@/lib/utils";
-import type { Child, LocationPing } from "@/lib/types";
+import type { AttendanceStatus, Child, LocationPing } from "@/lib/types";
 
 const LiveMap = dynamic(() => import("./LiveMap"), {
   ssr: false,
@@ -34,6 +35,7 @@ export default function ChildCard({
   school,
   color,
   city,
+  attendanceStatus,
 }: {
   child: Child;
   driverName?: string;
@@ -41,6 +43,7 @@ export default function ChildCard({
   school?: { lat: number; lng: number; name: string } | null;
   color: CardColor;
   city: string;
+  attendanceStatus?: AttendanceStatus;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -155,6 +158,10 @@ export default function ChildCard({
             </span>
             {driverName && <span className="text-sm text-slate-600">Driver: {driverName}</span>}
             {latest && <span className="text-xs text-slate-400">· {relativeTime(latest.created_at)}</span>}
+          </div>
+
+          <div className="mt-2">
+            <AttendanceToggle childId={child.id} initialStatus={attendanceStatus ?? "present"} />
           </div>
 
           <div className="mt-2 flex flex-wrap gap-2">

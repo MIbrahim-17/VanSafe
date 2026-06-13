@@ -60,8 +60,80 @@ export interface Child {
   name: string;
   school: string;
   pickup_address: string;
+  pickup_lat: number | null;
+  pickup_lng: number | null;
   driver_id: string | null;
   created_at: string;
+}
+
+export type RoutePeriod = "morning" | "afternoon";
+export type AttendanceStatus = "present" | "absent";
+export type RouteEngine = "google" | "osrm" | "haversine";
+
+export interface BaseRoute {
+  driver_id: string;
+  home_address: string;
+  home_lat: number | null;
+  home_lng: number | null;
+  school_name: string;
+  school_lat: number | null;
+  school_lng: number | null;
+  child_order: string[];
+  fuel_avg_kmpl: number;
+  updated_at: string;
+}
+
+export interface AttendanceRow {
+  id: string;
+  child_id: string;
+  driver_id: string | null;
+  parent_id: string;
+  date: string;
+  status: AttendanceStatus;
+  marked_by: "driver" | "parent";
+  created_at: string;
+}
+
+export interface RouteLog {
+  id: string;
+  driver_id: string;
+  date: string;
+  period: RoutePeriod;
+  stops: number;
+  optimized_distance_m: number;
+  unoptimized_distance_m: number;
+  duration_s: number;
+  fuel_cost: number;
+  fuel_saved: number;
+  distance_saved_m: number;
+  time_saved_s: number;
+  engine: RouteEngine;
+  created_at: string;
+}
+
+/** A single ordered stop in an optimized route. */
+export interface RouteStop {
+  childId: string;
+  name: string;
+  lat: number;
+  lng: number;
+  order: number;
+}
+
+/** Result returned by the optimizer + /api/route/optimize. */
+export interface OptimizeResult {
+  period: RoutePeriod;
+  engine: RouteEngine;
+  stops: RouteStop[];
+  /** Decoded [lat,lng] polyline of the optimized route for map display. */
+  polyline: [number, number][];
+  optimizedDistanceM: number;
+  unoptimizedDistanceM: number;
+  durationS: number;
+  fuelCost: number;
+  fuelSaved: number;
+  distanceSavedM: number;
+  timeSavedS: number;
 }
 
 export interface Review {

@@ -47,6 +47,8 @@ create table if not exists public.children (
   name text not null,
   school text not null default '',
   pickup_address text not null default '',
+  pickup_lat double precision,
+  pickup_lng double precision,
   driver_id uuid references public.drivers (id) on delete set null,
   created_at timestamptz not null default now()
 );
@@ -108,6 +110,52 @@ create table if not exists public.alerts (
 );
 
 create index if not exists alerts_parent_time on public.alerts (parent_id, created_at desc);
+
+-- Route optimization: base route, daily attendance, per-day route metrics.
+create table if not exists public.routes (
+  driver_id uuid primary key references public.drivers (id) on delete cascade,
+  home_address text not null default '',
+  home_lat double precision,
+  home_lng double precision,
+  school_name text not null default '',
+  school_lat double precision,
+  school_lng double precision,
+  child_order uuid[] not null default '{}',
+  fuel_avg_kmpl numeric(5, 2) not null default 10,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.attendance (
+  id uuid primary key default gen_random_uuid(),
+  child_id uuid not null references public.children (id) on delete cascade,
+  driver_id uuid references public.drivers (id) on delete set null,
+  parent_id uuid not null references public.profiles (id) on delete cascade,
+  date date not null default current_date,
+  status text not null default 'present' check (status in ('present', 'absent')),
+  marked_by text not null default 'driver' check (marked_by in ('driver', 'parent')),
+  created_at timestamptz not null default now(),
+  unique (child_id, date)
+);
+create index if not exists attendance_driver_date on public.attendance (driver_id, date);
+
+create table if not exists public.route_logs (
+  id uuid primary key default gen_random_uuid(),
+  driver_id uuid not null references public.drivers (id) on delete cascade,
+  date date not null default current_date,
+  period text not null check (period in ('morning', 'afternoon')),
+  stops int not null default 0,
+  optimized_distance_m double precision not null default 0,
+  unoptimized_distance_m double precision not null default 0,
+  duration_s double precision not null default 0,
+  fuel_cost numeric(10, 2) not null default 0,
+  fuel_saved numeric(10, 2) not null default 0,
+  distance_saved_m double precision not null default 0,
+  time_saved_s double precision not null default 0,
+  engine text not null default 'haversine',
+  created_at timestamptz not null default now(),
+  unique (driver_id, date, period)
+);
+create index if not exists route_logs_driver_date on public.route_logs (driver_id, date desc);
 
 -- ---------------------------------------------------------------------------
 -- Rating recompute trigger
@@ -187,6 +235,9 @@ alter table public.reviews enable row level security;
 alter table public.locations enable row level security;
 alter table public.tracking_sessions enable row level security;
 alter table public.alerts enable row level security;
+alter table public.routes enable row level security;
+alter table public.attendance enable row level security;
+alter table public.route_logs enable row level security;
 
 -- profiles: readable by authenticated users; writable only by self.
 drop policy if exists profiles_read on public.profiles;
@@ -252,6 +303,32 @@ create policy ts_read on public.tracking_sessions for select
 -- alerts: parent reads own.
 drop policy if exists alerts_read on public.alerts;
 create policy alerts_read on public.alerts for select using (auth.uid() = parent_id);
+
+-- routes: a driver manages only their own base route.
+drop policy if exists routes_all on public.routes;
+create policy routes_all on public.routes for all
+  using (auth.uid() = driver_id) with check (auth.uid() = driver_id);
+
+-- attendance: a parent manages their own child's; a driver manages attendance
+-- for children currently linked to them.
+drop policy if exists attendance_parent_all on public.attendance;
+create policy attendance_parent_all on public.attendance for all
+  using (auth.uid() = parent_id) with check (auth.uid() = parent_id);
+drop policy if exists attendance_driver_all on public.attendance;
+create policy attendance_driver_all on public.attendance for all
+  using (
+    exists (select 1 from public.children c
+            where c.id = attendance.child_id and c.driver_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.children c
+            where c.id = attendance.child_id and c.driver_id = auth.uid())
+  );
+
+-- route_logs: a driver manages only their own logs.
+drop policy if exists route_logs_all on public.route_logs;
+create policy route_logs_all on public.route_logs for all
+  using (auth.uid() = driver_id) with check (auth.uid() = driver_id);
 
 -- ---------------------------------------------------------------------------
 -- Storage bucket for documents

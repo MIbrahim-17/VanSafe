@@ -28,6 +28,23 @@ export function whatsappLink(number: string, text = ""): string {
   return `https://wa.me/${digits}${q}`;
 }
 
+/** "12.4 km" from metres. */
+export function formatKm(metres: number): string {
+  return `${(metres / 1000).toFixed(1)} km`;
+}
+
+/** "1h 5m" / "23 min" from seconds. */
+export function formatDuration(seconds: number): string {
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+/** "Rs 1,240" — rupee amount, rounded. */
+export function formatPKR(amount: number): string {
+  return `Rs ${Math.round(amount).toLocaleString("en-PK")}`;
+}
+
 export function minutesAgo(iso: string): number {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }

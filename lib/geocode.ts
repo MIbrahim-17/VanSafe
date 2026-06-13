@@ -35,3 +35,31 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
     return null;
   }
 }
+
+/**
+ * Forward-geocode a pickup address (within a city) to coordinates using OSM
+ * Nominatim. Returns null on failure so the caller can flag "address missing".
+ */
+export async function geocodeAddress(
+  address: string,
+  city?: string
+): Promise<{ lat: number; lng: number } | null> {
+  const q = [address, city, "Pakistan"].filter(Boolean).join(", ").trim();
+  if (!address.trim()) return null;
+  try {
+    const url =
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1` +
+      `&countrycodes=pk&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "VanSafe/1.0 (school-van tracking demo)" },
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { lat: string; lon: string }[];
+    const hit = data[0];
+    if (!hit) return null;
+    return { lat: Number(hit.lat), lng: Number(hit.lon) };
+  } catch {
+    return null;
+  }
+}

@@ -9,7 +9,7 @@ import { relativeTime } from "@/lib/utils";
 import { cityLabel } from "@/lib/constants";
 import { schoolLocation } from "@/lib/schools";
 import { Bus, School, Clock, Route, Alert, MapPin, User } from "@/components/icons";
-import type { AlertRow, Child, Profile } from "@/lib/types";
+import type { AlertRow, AttendanceRow, AttendanceStatus, Child, Profile } from "@/lib/types";
 import type { ComponentType } from "react";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +77,19 @@ export default async function ParentDashboard() {
     .limit(8);
   const alertRows = (alerts as AlertRow[] | null) ?? [];
 
+  // Today's attendance for this parent's children (default present).
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: attRows } = children.length
+    ? await supabase
+        .from("attendance")
+        .select("*")
+        .eq("parent_id", profile.id)
+        .eq("date", today)
+    : { data: [] };
+  const attendanceMap = new Map(
+    (attRows as AttendanceRow[] | null)?.map((a) => [a.child_id, a.status as AttendanceStatus]) ?? []
+  );
+
   // Linked children become selectable targets for Demo Mode.
   const demoTargets = children
     .filter((c) => c.driver_id)
@@ -139,6 +152,7 @@ export default async function ParentDashboard() {
                     driverName={d?.name}
                     driverWhatsapp={d?.whatsapp}
                     school={loc ? { ...loc, name: child.school } : null}
+                    attendanceStatus={attendanceMap.get(child.id) ?? "present"}
                   />
                 );
               })}

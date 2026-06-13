@@ -86,7 +86,9 @@ update public.drivers set
   verified = false
 where id = '44444444-4444-4444-4444-444444444444';
 
--- Reviews
+-- Reviews (clear the demo parent's first so re-running doesn't duplicate them
+-- and inflate each driver's review count via the rating trigger).
+delete from public.reviews where parent_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 insert into public.reviews (driver_id, parent_id, rating, comment) values
   ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'Always on time and very gentle with the kids.'),
   ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 4, 'Reliable, sometimes 5 mins late in rain but messages ahead.'),
@@ -98,11 +100,14 @@ update public.profiles
   set area = 'Gulshan-e-Iqbal', school = 'The City School Gulshan'
   where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
--- Two demo children, each linked to a different driver (multi-child demo)
+-- Two demo children, each linked to a different driver (multi-child demo).
+-- Children have random ids and no natural unique key, so a plain insert would
+-- duplicate them on every re-run (and eventually trip the 5-child limit).
+-- Reset the demo parent's children first to keep the seed idempotent.
+delete from public.children where parent_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 insert into public.children (parent_id, name, school, pickup_address, driver_id) values
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Ayesha', 'The City School Gulshan', 'House 12, Block 5, Gulshan-e-Iqbal', '11111111-1111-1111-1111-111111111111'),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Hamza',  'The Educators Gulshan',   'House 12, Block 5, Gulshan-e-Iqbal', '33333333-3333-3333-3333-333333333333')
-on conflict do nothing;
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Hamza',  'The Educators Gulshan',   'House 12, Block 5, Gulshan-e-Iqbal', '33333333-3333-3333-3333-333333333333');
 
 -- A short route history for Imran (Gulshan-e-Iqbal, Karachi) over the last ~5 min
 insert into public.locations (driver_id, lat, lng, created_at) values
@@ -134,3 +139,83 @@ on conflict (driver_id) do update set
   active = excluded.active, status = excluded.status,
   started_at = excluded.started_at, pings_today = excluded.pings_today,
   last_ping_date = excluded.last_ping_date;
+
+-- ---------------------------------------------------------------------------
+-- Route optimization demo: pickup coords, base routes, fuel-savings history
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  ayesha uuid;
+  hamza uuid;
+  d date;
+  price numeric := 264;     -- approximate PKR/litre petrol
+  fuel numeric := 9;        -- Imran's km/L
+  opt numeric;
+  unopt numeric;
+begin
+  select id into ayesha from public.children
+    where parent_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and name = 'Ayesha' limit 1;
+  select id into hamza from public.children
+    where parent_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and name = 'Hamza' limit 1;
+
+  -- Geocoded pickup point for the demo children (Gulshan-e-Iqbal).
+  update public.children set pickup_lat = 24.9200, pickup_lng = 67.0950
+    where id in (ayesha, hamza);
+
+  -- Imran's saved base route (home -> children -> school).
+  insert into public.routes
+    (driver_id, home_address, home_lat, home_lng, school_name, school_lat, school_lng, child_order, fuel_avg_kmpl)
+  values
+    ('11111111-1111-1111-1111-111111111111', 'Block 10, Gulshan-e-Iqbal', 24.9180, 67.0971,
+     'The City School Gulshan', 24.9215, 67.0990, array[ayesha], 9.0)
+  on conflict (driver_id) do update set
+    home_lat = excluded.home_lat, home_lng = excluded.home_lng,
+    school_name = excluded.school_name, school_lat = excluded.school_lat,
+    school_lng = excluded.school_lng, child_order = excluded.child_order,
+    fuel_avg_kmpl = excluded.fuel_avg_kmpl;
+
+  -- Saleem's saved base route.
+  insert into public.routes
+    (driver_id, home_address, home_lat, home_lng, school_name, school_lat, school_lng, child_order, fuel_avg_kmpl)
+  values
+    ('33333333-3333-3333-3333-333333333333', 'Block 13, Gulshan-e-Iqbal', 24.9300, 67.0850,
+     'The Educators Gulshan', 24.9270, 67.0900, array[hamza], 12.0)
+  on conflict (driver_id) do update set
+    home_lat = excluded.home_lat, home_lng = excluded.home_lng,
+    school_name = excluded.school_name, school_lat = excluded.school_lat,
+    school_lng = excluded.school_lng, child_order = excluded.child_order,
+    fuel_avg_kmpl = excluded.fuel_avg_kmpl;
+
+  -- ~1 month of Imran's daily route logs (weekdays) for the savings dashboard.
+  for d in select generate_series(current_date - 29, current_date, interval '1 day')::date loop
+    if extract(dow from d) in (0, 6) then continue; end if;  -- skip weekends
+
+    -- Morning (time-optimized).
+    opt := 10500 + floor(random() * 3000);
+    unopt := opt + 1800 + floor(random() * 1600);
+    insert into public.route_logs
+      (driver_id, date, period, stops, optimized_distance_m, unoptimized_distance_m,
+       duration_s, fuel_cost, fuel_saved, distance_saved_m, time_saved_s, engine)
+    values
+      ('11111111-1111-1111-1111-111111111111', d, 'morning', 4, opt, unopt,
+       1500 + random() * 600,
+       round((opt / 1000.0 / fuel) * price, 2),
+       round(((unopt - opt) / 1000.0 / fuel) * price, 2),
+       unopt - opt, 300 + random() * 400, 'osrm')
+    on conflict (driver_id, date, period) do nothing;
+
+    -- Afternoon (distance-optimized, slightly shorter).
+    opt := 9500 + floor(random() * 2500);
+    unopt := opt + 1500 + floor(random() * 1400);
+    insert into public.route_logs
+      (driver_id, date, period, stops, optimized_distance_m, unoptimized_distance_m,
+       duration_s, fuel_cost, fuel_saved, distance_saved_m, time_saved_s, engine)
+    values
+      ('11111111-1111-1111-1111-111111111111', d, 'afternoon', 4, opt, unopt,
+       1300 + random() * 500,
+       round((opt / 1000.0 / fuel) * price, 2),
+       round(((unopt - opt) / 1000.0 / fuel) * price, 2),
+       unopt - opt, 200 + random() * 300, 'osrm')
+    on conflict (driver_id, date, period) do nothing;
+  end loop;
+end $$;

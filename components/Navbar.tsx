@@ -51,7 +51,10 @@ export default async function Navbar() {
                 </>
               )}
               {profile.role === "driver" && (
-                <NavLink href="/driver/track">Tracking</NavLink>
+                <>
+                  <NavLink href="/driver/route">Route</NavLink>
+                  <NavLink href="/driver/track">Tracking</NavLink>
+                </>
               )}
               <span className="mr-1 hidden items-center gap-2 border-l border-slate-200 pl-4 text-sm text-slate-500 sm:flex">
                 <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700">

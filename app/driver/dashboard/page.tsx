@@ -3,10 +3,11 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import StarRating from "@/components/StarRating";
 import OccupancyBar from "@/components/OccupancyBar";
-import { MapPin, Play, Message } from "@/components/icons";
-import { whatsappLink } from "@/lib/utils";
+import FuelChart, { type FuelDay } from "@/components/FuelChart";
+import { MapPin, Play, Message, Route, Sparkles } from "@/components/icons";
+import { whatsappLink, formatPKR } from "@/lib/utils";
 import { cityLabel } from "@/lib/constants";
-import type { Child, Driver, Profile } from "@/lib/types";
+import type { Child, Driver, Profile, RouteLog } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,35 @@ export default async function DriverDashboard() {
     .select("*")
     .eq("driver_id", profile.id);
   const childRows = (kids as Child[] | null) ?? [];
+
+  // Fuel-savings history (last ~31 days) for the savings dashboard.
+  const since = new Date(Date.now() - 31 * 86400_000).toISOString().slice(0, 10);
+  const { data: logRows } = await supabase
+    .from("route_logs")
+    .select("*")
+    .eq("driver_id", profile.id)
+    .gte("date", since)
+    .order("date");
+  const logs = (logRows as RouteLog[] | null) ?? [];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const weekStart = new Date(Date.now() - 6 * 86400_000).toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 8) + "01";
+  const sum = (rows: RouteLog[], key: "fuel_saved" | "fuel_cost") =>
+    rows.reduce((t, r) => t + Number(r[key]), 0);
+  const savedToday = sum(logs.filter((l) => l.date === today), "fuel_saved");
+  const savedWeek = sum(logs.filter((l) => l.date >= weekStart), "fuel_saved");
+  const savedMonth = sum(logs.filter((l) => l.date >= monthStart), "fuel_saved");
+
+  // Per-day series (morning + afternoon combined) for the 30-day chart.
+  const byDay = new Map<string, FuelDay>();
+  for (const l of logs) {
+    const e = byDay.get(l.date) ?? { date: l.date, cost: 0, saved: 0 };
+    e.cost += Number(l.fuel_cost);
+    e.saved += Number(l.fuel_saved);
+    byDay.set(l.date, e);
+  }
+  const chart = Array.from(byDay.values()).slice(-30);
 
   const parentIds = Array.from(new Set(childRows.map((c) => c.parent_id)));
   const { data: parents } = parentIds.length
@@ -48,9 +78,45 @@ export default async function DriverDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/driver/route" className="btn-primary"><Route size={15} /> Plan Route</Link>
           <Link href="/driver/track" className="btn-green"><Play size={15} /> Start Tracking</Link>
           <Link href="/driver/profile/edit" className="btn-ghost">Edit Profile</Link>
           <Link href={`/driver/${profile.id}`} className="btn-ghost">View Public Profile</Link>
+        </div>
+      </div>
+
+      {/* Fuel savings */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="card flex flex-col justify-center bg-gradient-to-br from-brand-50 to-white p-5 ring-1 ring-brand-100">
+          <p className="text-sm font-medium text-brand-800">Saved this month — اس مہینے بچائے</p>
+          <p className="mt-1 text-4xl font-extrabold tracking-tight text-brand-700">
+            {formatPKR(savedMonth)}
+          </p>
+          <p className="mt-1 text-xs text-brand-700/70">
+            in fuel, vs unoptimized routes
+          </p>
+          <div className="mt-4 flex gap-4 text-sm">
+            <div>
+              <p className="text-xs text-slate-400">Today</p>
+              <p className="font-semibold text-slate-800">{formatPKR(savedToday)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">This week</p>
+              <p className="font-semibold text-slate-800">{formatPKR(savedWeek)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-5 lg:col-span-2">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+              <Sparkles size={16} className="text-brand-600" /> Daily fuel cost — last 30 days
+            </h2>
+            <Link href="/driver/route" className="text-sm font-medium text-brand-700">
+              Optimize today →
+            </Link>
+          </div>
+          <FuelChart data={chart} />
         </div>
       </div>
 
