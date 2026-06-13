@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Star } from "./icons";
 
 export default function ReviewForm({ driverId }: { driverId: string }) {
   const router = useRouter();
@@ -34,16 +35,16 @@ export default function ReviewForm({ driverId }: { driverId: string }) {
       <h3 className="font-semibold text-slate-900">Leave a review</h3>
       <div>
         <span className="label">Rating</span>
-        <div className="flex gap-1 text-2xl">
+        <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map((n) => (
             <button
               type="button"
               key={n}
               onClick={() => setRating(n)}
-              className={n <= rating ? "text-amber-500" : "text-slate-300"}
+              className={`transition-colors ${n <= rating ? "text-amber-400" : "text-slate-300 hover:text-amber-200"}`}
               aria-label={`${n} stars`}
             >
-              ★
+              <Star size={26} filled={n <= rating} />
             </button>
           ))}
         </div>

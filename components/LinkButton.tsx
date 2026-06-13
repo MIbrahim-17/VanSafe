@@ -2,102 +2,87 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import type { Child } from "@/lib/types";
 
+/**
+ * Per-child linking on a driver's public profile. Each of the parent's children
+ * can be independently linked to / unlinked from this van.
+ */
 export default function LinkButton({
   driverId,
-  linkedHere,
-  linkedElsewhere,
+  kids,
 }: {
   driverId: string;
-  linkedHere: boolean;
-  linkedElsewhere: boolean;
+  kids: Child[];
 }) {
   const router = useRouter();
   const supabase = createClient();
-  const [open, setOpen] = useState(false);
-  const [child, setChild] = useState("");
-  const [school, setSchool] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  async function link(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+  async function setDriver(childId: string, value: string | null) {
+    setBusyId(childId);
     setError("");
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      router.push("/login");
+    const { error: err } = await supabase
+      .from("children")
+      .update({ driver_id: value })
+      .eq("id", childId);
+    setBusyId(null);
+    if (err) {
+      setError(err.message);
       return;
     }
-    const { error: insErr } = await supabase.from("links").insert({
-      parent_id: user.id,
-      driver_id: driverId,
-      child_name: child,
-      school,
-    });
-    setBusy(false);
-    if (insErr) {
-      setError(
-        insErr.code === "23505"
-          ? "You're already linked to another van. Unlink it first."
-          : insErr.message
-      );
-      return;
-    }
-    router.push("/parent/dashboard");
     router.refresh();
   }
 
-  async function unlink() {
-    setBusy(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) await supabase.from("links").delete().eq("parent_id", user.id);
-    setBusy(false);
-    router.refresh();
-  }
-
-  if (linkedHere) {
+  if (kids.length === 0) {
     return (
-      <div className="space-y-2">
-        <span className="badge bg-emerald-100 text-emerald-700">✔ Your child rides with this van</span>
-        <button onClick={unlink} disabled={busy} className="btn-ghost w-full">
-          Unlink this van
-        </button>
-      </div>
-    );
-  }
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="btn-primary w-full">
-        🔗 Link my child to this van
-      </button>
+      <p className="text-sm text-slate-500">
+        Add a child on your{" "}
+        <Link href="/parent/dashboard" className="text-brand-700">
+          dashboard
+        </Link>{" "}
+        first, then link them to this van.
+      </p>
     );
   }
 
   return (
-    <form onSubmit={link} className="space-y-2">
-      {linkedElsewhere && (
-        <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
-          You&apos;re currently linked to another van. Linking here will be blocked until you unlink.
-        </p>
-      )}
-      <input className="input" required placeholder="Child's name" value={child} onChange={(e) => setChild(e.target.value)} />
-      <input className="input" required placeholder="School" value={school} onChange={(e) => setSchool(e.target.value)} />
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-slate-700">Link a child to this van</p>
+      {kids.map((c) => {
+        const here = c.driver_id === driverId;
+        const elsewhere = c.driver_id && c.driver_id !== driverId;
+        const busy = busyId === c.id;
+        return (
+          <div
+            key={c.id}
+            className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-800">{c.name}</p>
+              <p className="truncate text-xs text-slate-400">{c.school || "No school set"}</p>
+            </div>
+            {here ? (
+              <button onClick={() => setDriver(c.id, null)} disabled={busy} className="btn-ghost shrink-0 text-xs">
+                {busy ? "…" : "Unlink"}
+              </button>
+            ) : (
+              <button
+                onClick={() => setDriver(c.id, driverId)}
+                disabled={busy}
+                className="btn-primary shrink-0 text-xs"
+                title={elsewhere ? "Move this child to this van" : undefined}
+              >
+                {busy ? "…" : elsewhere ? "Switch here" : "Link"}
+              </button>
+            )}
+          </div>
+        );
+      })}
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <div className="flex gap-2">
-        <button className="btn-primary flex-1" disabled={busy}>
-          {busy ? "Linking…" : "Confirm link"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="btn-ghost">
-          Cancel
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

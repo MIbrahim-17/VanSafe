@@ -51,12 +51,14 @@ ${JSON.stringify(
   drivers.map((d) => ({
     id: d.id,
     name: d.profile.name,
-    area: d.area,
+    city: d.profile.city,
+    areas: d.areas,
     schools: d.schools,
-    vehicle: d.vehicle_type,
+    vehicle: d.make_model || d.vehicle_type,
+    category: d.vehicle_type,
     rating: d.rating,
     reviews: d.review_count,
-    seatsFree: Math.max(0, d.capacity - d.occupancy),
+    seatsFree: Math.max(0, (d.official_capacity || d.capacity) - d.occupancy),
     verified: d.verified,
   }))
 )}
@@ -87,13 +89,13 @@ function ruleRank(criteria: MatchCriteria, drivers: DriverWithProfile[]): MatchR
     .map((d) => {
       let score = 40;
       const reasons: string[] = [];
-      const seatsFree = Math.max(0, d.capacity - d.occupancy);
+      const seatsFree = Math.max(0, (d.official_capacity || d.capacity) - d.occupancy);
 
       if (school && d.schools.some((s) => s.toLowerCase().includes(school))) {
         score += 25;
         reasons.push("serves your school");
       }
-      if (area && d.area.toLowerCase().includes(area)) {
+      if (area && d.areas.some((a) => a.toLowerCase().includes(area))) {
         score += 15;
         reasons.push("covers your area");
       }

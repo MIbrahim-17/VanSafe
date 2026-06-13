@@ -63,15 +63,62 @@ export function deriveStatus(pings: LocationPing[]): {
   return { status: "stopped", label: "Stopped" };
 }
 
-export function occupancyColor(occupancy: number, capacity: number): {
+export interface CapacityStatus {
+  /** occupancy / capacity (0–∞). */
+  ratio: number;
+  /** Clamped 0–100 for progress bars. */
+  pct: number;
+  /** True when current occupancy exceeds the official capacity. */
+  over: boolean;
+  /** Tailwind classes for the progress bar fill. */
   bar: string;
+  /** Tailwind classes (bg + text) for a colour-coded badge. */
+  badge: string;
+  /** Tailwind text colour for inline labels. */
   text: string;
+  /** English status label. */
   label: string;
-} {
-  const ratio = capacity > 0 ? occupancy / capacity : 1;
-  if (ratio >= 0.95)
-    return { bar: "bg-rose-500", text: "text-rose-700", label: "Full" };
+}
+
+/**
+ * Colour-code occupancy against the official seating capacity.
+ *   green  < 70%        amber 70–90%        red 90–100%
+ *   dark red + warning  > official limit (overcrowded)
+ */
+export function capacityStatus(occupancy: number, capacity: number): CapacityStatus {
+  const ratio = capacity > 0 ? occupancy / capacity : occupancy > 0 ? Infinity : 0;
+  const pct = capacity > 0 ? Math.min(100, (occupancy / capacity) * 100) : 100;
+  const over = capacity > 0 && occupancy > capacity;
+
+  if (over)
+    return {
+      ratio, pct, over,
+      bar: "bg-red-700",
+      badge: "bg-red-700 text-white",
+      text: "text-red-700",
+      label: "Over Capacity — گنجائش سے زیادہ",
+    };
+  if (ratio >= 0.9)
+    return {
+      ratio, pct, over,
+      bar: "bg-rose-500",
+      badge: "bg-rose-100 text-rose-700",
+      text: "text-rose-700",
+      label: "Almost full",
+    };
   if (ratio >= 0.7)
-    return { bar: "bg-amber-500", text: "text-amber-700", label: "Filling up" };
-  return { bar: "bg-emerald-500", text: "text-emerald-700", label: "Seats available" };
+    return {
+      ratio, pct, over,
+      bar: "bg-amber-500",
+      badge: "bg-amber-100 text-amber-700",
+      text: "text-amber-700",
+      label: "Filling up",
+    };
+  return {
+    ratio, pct, over,
+    bar: "bg-emerald-500",
+    badge: "bg-emerald-100 text-emerald-700",
+    text: "text-emerald-700",
+    label: "Seats available",
+  };
 }

@@ -1,5 +1,8 @@
+import type { VehicleCategory } from "@/lib/vehicles";
+
 export type Role = "parent" | "driver";
-export type VehicleType = "Van" | "Wagon" | "Hi-Roof";
+/** Vehicle size category — see lib/vehicles.ts for the model catalog. */
+export type VehicleType = VehicleCategory;
 export type TrackStatus = "moving" | "stopped" | "idle";
 export type AlertType =
   | "departed"
@@ -15,16 +18,24 @@ export interface Profile {
   email: string;
   whatsapp: string;
   city: string;
+  area: string;
+  school: string;
   created_at: string;
 }
 
 export interface Driver {
   id: string;
   area: string;
+  areas: string[];
   schools: string[];
   vehicle_type: VehicleType;
+  /** Catalog model name (e.g. "Toyota Hiace (High Roof)") or "" / "Other". */
+  vehicle_model: string;
   plate: string;
+  /** Driver's actual stated seat count (may be an override of the standard). */
   capacity: number;
+  /** Official standard capacity — immutable safety benchmark for overcrowding. */
+  official_capacity: number;
   occupancy: number;
   make_model: string;
   color: string;
@@ -43,12 +54,13 @@ export interface DriverWithProfile extends Driver {
   profile: Pick<Profile, "name" | "whatsapp" | "city">;
 }
 
-export interface LinkRow {
+export interface Child {
   id: string;
   parent_id: string;
-  driver_id: string;
-  child_name: string;
+  name: string;
   school: string;
+  pickup_address: string;
+  driver_id: string | null;
   created_at: string;
 }
 

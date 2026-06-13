@@ -9,9 +9,11 @@ import TrustBadges from "@/components/TrustBadges";
 import ReviewList from "@/components/ReviewList";
 import ReviewForm from "@/components/ReviewForm";
 import LinkButton from "@/components/LinkButton";
+import { MapPin, Sparkles, Message } from "@/components/icons";
 import { whatsappLink } from "@/lib/utils";
 import { cityLabel } from "@/lib/constants";
-import type { Driver, LinkRow, Profile, Review } from "@/lib/types";
+import { benchmarkCapacity, CATEGORY_URDU } from "@/lib/vehicles";
+import type { Child, Driver, Profile, Review, VehicleType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,8 @@ export default async function DriverProfilePage({
     .maybeSingle();
   if (!driver) notFound();
   const d = driver as Driver;
+  // Safety benchmark = official catalog capacity (falls back to entered seats).
+  const benchmark = benchmarkCapacity(d.vehicle_model, d.official_capacity || d.capacity);
 
   const { data: dProfile } = await supabase
     .from("profiles")
@@ -57,20 +61,18 @@ export default async function DriverProfilePage({
 
   const summary = await summarizeReviews(reviews);
 
-  // Parent link status.
-  let linkedHere = false;
-  let linkedElsewhere = false;
+  // Parent's children + whether any is linked to this driver.
   const isParent = viewer?.role === "parent";
+  let myChildren: Child[] = [];
   if (isParent) {
-    const { data: myLink } = await supabase
-      .from("links")
+    const { data: kids } = await supabase
+      .from("children")
       .select("*")
       .eq("parent_id", viewer!.id)
-      .maybeSingle();
-    const link = myLink as LinkRow | null;
-    linkedHere = link?.driver_id === params.id;
-    linkedElsewhere = !!link && link.driver_id !== params.id;
+      .order("created_at");
+    myChildren = (kids as Child[] | null) ?? [];
   }
+  const linkedHere = myChildren.some((c) => c.driver_id === params.id);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -80,43 +82,57 @@ export default async function DriverProfilePage({
             <div>
               <h1 className="text-2xl font-bold text-slate-900">{driverProfile.name}</h1>
               <p className="mt-1">
-                <span className="badge bg-indigo-100 text-indigo-700">
-                  📍 {driverProfile.city ? cityLabel(driverProfile.city) : "City not set"}
+                <span className="badge bg-brand-100 text-brand-800">
+                  <MapPin size={13} /> {driverProfile.city ? cityLabel(driverProfile.city) : "City not set"}
                 </span>
               </p>
-              {d.area && <p className="mt-1 text-sm text-slate-500">{d.area}</p>}
+              {d.areas?.length > 0 && (
+                <p className="mt-1 text-sm text-slate-500">Areas: {d.areas.join(", ")}</p>
+              )}
             </div>
             <StarRating value={d.rating} count={d.review_count} size="lg" />
           </div>
           {d.bio && <p className="mt-3 text-sm text-slate-600">{d.bio}</p>}
 
-          <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-3">
-            <div>
-              <p className="text-xs text-slate-400">Vehicle</p>
-              <p className="font-medium text-slate-700">
-                {d.make_model || d.vehicle_type}
+          <div className="mt-4 rounded-xl bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-base font-semibold text-slate-900">
+                {d.make_model || d.vehicle_model || "Vehicle"}
+                {benchmark > 0 && (
+                  <span className="font-normal text-slate-500"> — {benchmark} seats</span>
+                )}
               </p>
+              <span className="badge bg-white text-slate-600 ring-1 ring-slate-200">
+                {d.vehicle_type}
+                {CATEGORY_URDU[d.vehicle_type as VehicleType]
+                  ? ` · ${CATEGORY_URDU[d.vehicle_type as VehicleType]}`
+                  : ""}
+              </span>
             </div>
-            <div>
-              <p className="text-xs text-slate-400">Type</p>
-              <p className="font-medium text-slate-700">{d.vehicle_type}</p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <p className="text-xs text-slate-400">Colour</p>
+                <p className="font-medium text-slate-700">{d.color || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Plate</p>
+                <p className="font-medium text-slate-700">{d.plate || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Year</p>
+                <p className="font-medium text-slate-700">{d.year ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Official capacity</p>
+                <p className="font-medium text-slate-700">{benchmark} seats</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-400">Colour</p>
-              <p className="font-medium text-slate-700">{d.color || "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Plate</p>
-              <p className="font-medium text-slate-700">{d.plate || "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Year</p>
-              <p className="font-medium text-slate-700">{d.year ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Capacity</p>
-              <p className="font-medium text-slate-700">{d.capacity} seats</p>
-            </div>
+            {d.capacity > 0 && d.capacity !== benchmark && (
+              <p className="mt-2 text-xs text-slate-400">
+                Driver states {d.capacity} seats (modified) — safety checks use the official limit
+                of {benchmark}.
+              </p>
+            )}
           </div>
           <div className="mt-3">
             <TrustBadges driver={d} />
@@ -127,11 +143,11 @@ export default async function DriverProfilePage({
           </p>
         </div>
 
-        <div className="card border-indigo-100 bg-indigo-50 p-5">
-          <h2 className="flex items-center gap-2 font-semibold text-indigo-800">
-            🤖 AI review summary
+        <div className="card border-brand-100 bg-brand-50 p-5">
+          <h2 className="flex items-center gap-2 font-semibold text-brand-900">
+            <Sparkles size={18} /> AI review summary
           </h2>
-          <p className="mt-2 text-sm text-indigo-900/80">{summary}</p>
+          <p className="mt-2 text-sm text-brand-900/80">{summary}</p>
         </div>
 
         <div>
@@ -149,28 +165,24 @@ export default async function DriverProfilePage({
       <aside className="space-y-4">
         <div className="card p-4">
           <p className="mb-2 text-sm font-medium text-slate-700">Seat availability</p>
-          <OccupancyBar occupancy={d.occupancy} capacity={d.capacity} />
+          <OccupancyBar occupancy={d.occupancy} capacity={benchmark} />
         </div>
 
         {isParent ? (
           <div className="card p-4">
-            <LinkButton
-              driverId={params.id}
-              linkedHere={linkedHere}
-              linkedElsewhere={linkedElsewhere}
-            />
+            <LinkButton driverId={params.id} kids={myChildren} />
             <a
               className="btn-green mt-2 w-full"
               href={whatsappLink(driverProfile.whatsapp)}
               target="_blank"
               rel="noreferrer"
             >
-              💬 WhatsApp driver
+              <Message size={16} /> WhatsApp driver
             </a>
           </div>
         ) : (
           <div className="card p-4 text-sm text-slate-500">
-            <Link href="/login" className="text-indigo-600">Log in as a parent</Link> to link
+            <Link href="/login" className="text-brand-700">Log in as a parent</Link> to link
             your child to this van.
           </div>
         )}

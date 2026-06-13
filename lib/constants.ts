@@ -1,5 +1,3 @@
-import type { VehicleType } from "@/lib/types";
-
 /** Major Pakistani cities VanSafe operates in, with Urdu display names. */
 export const CITIES: { name: string; urdu: string }[] = [
   { name: "Lahore", urdu: "لاہور" },
@@ -21,5 +19,3 @@ export function cityLabel(name: string): string {
   const c = CITIES.find((x) => x.name === name);
   return c ? `${c.name} — ${c.urdu}` : name;
 }
-
-export const VEHICLE_TYPES: VehicleType[] = ["Van", "Wagon", "Hi-Roof"];

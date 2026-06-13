@@ -14,16 +14,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Valid driverId and rating (1-5) required" }, { status: 400 });
   }
 
-  // Must be linked to this driver to review.
-  const { data: link } = await supabase
-    .from("links")
+  // Must have a child linked to this driver to review.
+  const { data: child } = await supabase
+    .from("children")
     .select("id")
     .eq("parent_id", user.id)
     .eq("driver_id", driverId)
+    .limit(1)
     .maybeSingle();
-  if (!link) {
+  if (!child) {
     return NextResponse.json(
-      { error: "You can only review a van you are linked to." },
+      { error: "You can only review a van one of your children rides." },
       { status: 403 }
     );
   }

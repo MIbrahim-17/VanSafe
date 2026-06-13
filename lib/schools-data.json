@@ -1,0 +1,378 @@
+{
+  "Lahore": {
+    "DHA": [
+      {
+        "name": "Beaconhouse Defence Campus",
+        "lat": 31.476,
+        "lng": 74.3925
+      },
+      {
+        "name": "The City School DHA",
+        "lat": 31.4705,
+        "lng": 74.403
+      },
+      {
+        "name": "Lahore Grammar School DHA",
+        "lat": 31.468,
+        "lng": 74.4075
+      },
+      {
+        "name": "Roots Millennium DHA",
+        "lat": 31.4745,
+        "lng": 74.398
+      },
+      {
+        "name": "LACAS DHA",
+        "lat": 31.466,
+        "lng": 74.401
+      },
+      {
+        "name": "The Educators DHA",
+        "lat": 31.479,
+        "lng": 74.395
+      }
+    ],
+    "Gulberg": [
+      {
+        "name": "Beaconhouse Gulberg",
+        "lat": 31.518,
+        "lng": 74.343
+      },
+      {
+        "name": "The City School Gulberg",
+        "lat": 31.5125,
+        "lng": 74.349
+      },
+      {
+        "name": "Lahore Grammar School Gulberg",
+        "lat": 31.51,
+        "lng": 74.35
+      },
+      {
+        "name": "Froebel's Gulberg",
+        "lat": 31.5155,
+        "lng": 74.3475
+      },
+      {
+        "name": "LACAS Gulberg",
+        "lat": 31.511,
+        "lng": 74.344
+      },
+      {
+        "name": "Punjab College Gulberg",
+        "lat": 31.5165,
+        "lng": 74.3415
+      }
+    ],
+    "Johar Town": [
+      {
+        "name": "Beaconhouse Johar Town",
+        "lat": 31.466,
+        "lng": 74.268
+      },
+      {
+        "name": "The City School Johar Town",
+        "lat": 31.471,
+        "lng": 74.273
+      },
+      {
+        "name": "LGS Johar Town",
+        "lat": 31.462,
+        "lng": 74.282
+      },
+      {
+        "name": "Roots Millennium Johar Town",
+        "lat": 31.4685,
+        "lng": 74.276
+      },
+      {
+        "name": "The Educators Johar Town",
+        "lat": 31.473,
+        "lng": 74.269
+      }
+    ],
+    "Model Town": [
+      {
+        "name": "Beaconhouse Model Town",
+        "lat": 31.482,
+        "lng": 74.326
+      },
+      {
+        "name": "The City School Model Town",
+        "lat": 31.486,
+        "lng": 74.321
+      },
+      {
+        "name": "LGS Model Town",
+        "lat": 31.4805,
+        "lng": 74.3215
+      },
+      {
+        "name": "Generation's Model Town",
+        "lat": 31.4875,
+        "lng": 74.325
+      },
+      {
+        "name": "LACAS Model Town",
+        "lat": 31.483,
+        "lng": 74.319
+      }
+    ],
+    "Bahria Town": [
+      {
+        "name": "Beaconhouse Bahria Town",
+        "lat": 31.369,
+        "lng": 74.185
+      },
+      {
+        "name": "The City School Bahria Town",
+        "lat": 31.365,
+        "lng": 74.19
+      },
+      {
+        "name": "Roots Millennium Bahria Town",
+        "lat": 31.37,
+        "lng": 74.189
+      },
+      {
+        "name": "The Educators Bahria Town",
+        "lat": 31.364,
+        "lng": 74.184
+      }
+    ],
+    "Cantt": [
+      {
+        "name": "Beaconhouse Cantt",
+        "lat": 31.5485,
+        "lng": 74.378
+      },
+      {
+        "name": "The City School Cantt",
+        "lat": 31.544,
+        "lng": 74.3825
+      },
+      {
+        "name": "LGS Cantt",
+        "lat": 31.55,
+        "lng": 74.376
+      },
+      {
+        "name": "St. Anthony's High School",
+        "lat": 31.547,
+        "lng": 74.37
+      }
+    ],
+    "Garden Town": [
+      {
+        "name": "Beaconhouse Garden Town",
+        "lat": 31.504,
+        "lng": 74.321
+      },
+      {
+        "name": "LGS Garden Town",
+        "lat": 31.5,
+        "lng": 74.325
+      },
+      {
+        "name": "Punjab College Garden Town",
+        "lat": 31.501,
+        "lng": 74.32
+      }
+    ],
+    "Wapda Town": [
+      {
+        "name": "Beaconhouse Wapda Town",
+        "lat": 31.432,
+        "lng": 74.248
+      },
+      {
+        "name": "The City School Wapda Town",
+        "lat": 31.428,
+        "lng": 74.252
+      },
+      {
+        "name": "LACAS Wapda Town",
+        "lat": 31.431,
+        "lng": 74.246
+      }
+    ]
+  },
+  "Karachi": {
+    "Clifton": [
+      {
+        "name": "Beaconhouse Clifton",
+        "lat": 24.815,
+        "lng": 67.028
+      },
+      {
+        "name": "The City School Clifton",
+        "lat": 24.811,
+        "lng": 67.032
+      },
+      {
+        "name": "Lahore Grammar School Clifton",
+        "lat": 24.809,
+        "lng": 67.034
+      },
+      {
+        "name": "Generation's Clifton",
+        "lat": 24.8165,
+        "lng": 67.0265
+      },
+      {
+        "name": "Froebel's Clifton",
+        "lat": 24.81,
+        "lng": 67.029
+      }
+    ],
+    "Defence": [
+      {
+        "name": "Beaconhouse Defence",
+        "lat": 24.802,
+        "lng": 67.058
+      },
+      {
+        "name": "The City School Defence",
+        "lat": 24.798,
+        "lng": 67.062
+      },
+      {
+        "name": "LGS Defence",
+        "lat": 24.793,
+        "lng": 67.073
+      },
+      {
+        "name": "Roots Millennium Defence",
+        "lat": 24.801,
+        "lng": 67.066
+      },
+      {
+        "name": "The Educators Defence",
+        "lat": 24.796,
+        "lng": 67.056
+      }
+    ],
+    "Gulshan-e-Iqbal": [
+      {
+        "name": "Beaconhouse Gulshan",
+        "lat": 24.9245,
+        "lng": 67.095
+      },
+      {
+        "name": "The City School Gulshan",
+        "lat": 24.922,
+        "lng": 67.09
+      },
+      {
+        "name": "Aga Khan School Gulshan",
+        "lat": 24.92,
+        "lng": 67.101
+      },
+      {
+        "name": "The Educators Gulshan",
+        "lat": 24.926,
+        "lng": 67.0985
+      },
+      {
+        "name": "LACAS Gulshan",
+        "lat": 24.919,
+        "lng": 67.094
+      }
+    ],
+    "PECHS": [
+      {
+        "name": "Beaconhouse PECHS",
+        "lat": 24.873,
+        "lng": 67.058
+      },
+      {
+        "name": "The City School PECHS",
+        "lat": 24.866,
+        "lng": 67.062
+      },
+      {
+        "name": "Generation's PECHS",
+        "lat": 24.87,
+        "lng": 67.064
+      },
+      {
+        "name": "Froebel's PECHS",
+        "lat": 24.865,
+        "lng": 67.056
+      }
+    ],
+    "North Nazimabad": [
+      {
+        "name": "Beaconhouse North Nazimabad",
+        "lat": 24.952,
+        "lng": 67.038
+      },
+      {
+        "name": "The City School North Nazimabad",
+        "lat": 24.957,
+        "lng": 67.035
+      },
+      {
+        "name": "Aga Khan School North Nazimabad",
+        "lat": 24.948,
+        "lng": 67.042
+      },
+      {
+        "name": "Generation's North Nazimabad",
+        "lat": 24.954,
+        "lng": 67.041
+      }
+    ],
+    "Korangi": [
+      {
+        "name": "The City School Korangi",
+        "lat": 24.837,
+        "lng": 67.128
+      },
+      {
+        "name": "The Educators Korangi",
+        "lat": 24.833,
+        "lng": 67.132
+      },
+      {
+        "name": "Aga Khan School Korangi",
+        "lat": 24.836,
+        "lng": 67.134
+      }
+    ],
+    "Gulistan-e-Johar": [
+      {
+        "name": "Beaconhouse Gulistan-e-Johar",
+        "lat": 24.922,
+        "lng": 67.128
+      },
+      {
+        "name": "The City School Gulistan-e-Johar",
+        "lat": 24.918,
+        "lng": 67.132
+      },
+      {
+        "name": "The Educators Gulistan-e-Johar",
+        "lat": 24.923,
+        "lng": 67.134
+      }
+    ],
+    "Nazimabad": [
+      {
+        "name": "Beaconhouse Nazimabad",
+        "lat": 24.915,
+        "lng": 67.028
+      },
+      {
+        "name": "Aga Khan School Nazimabad",
+        "lat": 24.911,
+        "lng": 67.032
+      },
+      {
+        "name": "The City School Nazimabad",
+        "lat": 24.914,
+        "lng": 67.034
+      }
+    ]
+  }
+}

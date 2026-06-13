@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DriverCard from "@/components/DriverCard";
 import { cityLabel } from "@/lib/constants";
+import { createClient } from "@/lib/supabase/client";
+import { Sparkles, MapPin } from "@/components/icons";
 import type { DriverWithProfile, MatchResult } from "@/lib/types";
 
 interface Ranked {
@@ -15,6 +17,23 @@ export default function MatchPage() {
   const [results, setResults] = useState<Ranked[] | null>(null);
   const [city, setCity] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Prefill from the parent's profile (area + child's school).
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("area,school,city")
+        .eq("id", user.id)
+        .single();
+      if (data) {
+        setForm((f) => ({ ...f, area: data.area ?? "", school: data.school ?? "" }));
+        setCity(data.city ?? "");
+      }
+    });
+  }, []);
 
   function update(k: keyof typeof form, v: string | number) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -38,7 +57,9 @@ export default function MatchPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">🤖 AI Van Matching</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+          <Sparkles size={24} className="text-brand-600" /> AI Van Matching
+        </h1>
         <p className="text-sm text-slate-500">
           Tell us your needs and AI ranks the best vans for your child.
         </p>
@@ -68,8 +89,10 @@ export default function MatchPage() {
         <div className="space-y-3">
           {results.length === 0 ? (
             <div className="card p-8 text-center">
-              <div className="text-4xl">🗺️</div>
-              <h3 className="mt-2 font-semibold text-slate-900">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-400">
+                <MapPin size={24} />
+              </div>
+              <h3 className="mt-3 font-semibold text-slate-900">
                 No van drivers in {city ? cityLabel(city) : "your city"} yet
               </h3>
               <p className="mt-1 text-sm text-slate-500">

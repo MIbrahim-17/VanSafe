@@ -12,7 +12,7 @@ review summaries, and anomaly detection.
 - **Supabase** — Postgres, Auth, Storage (documents), Realtime
 - **Google Gemini** (`gemini-2.0-flash`) — matching, review summaries, anomaly
   explanations, WhatsApp NL replies (rule-based fallback when no key)
-- **Meta WhatsApp Cloud API** — real inbound/outbound bot, with an in-app simulator fallback
+- **Twilio WhatsApp** — real inbound/outbound bot, with an in-app simulator fallback
 
 ## Features (mapped to user stories)
 
@@ -50,7 +50,7 @@ cp .env.local.example .env.local
 ```
 
 Fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
-`SUPABASE_SECRET_KEY` (required). `GEMINI_API_KEY` and the `WHATSAPP_*` vars
+`SUPABASE_SECRET_KEY` (required). `GEMINI_API_KEY` and the `TWILIO_*` vars
 are optional — without them the app uses rule-based AI and the in-app WhatsApp
 simulator.
 
@@ -62,6 +62,23 @@ npm run dev
 
 Open http://localhost:3000.
 
+## Scraping real schools (Lahore & Karachi)
+
+VanSafe ships with a built-in school catalog, but you can replace/augment it with
+real schools (accurate names + exact coordinates) scraped from OpenStreetMap:
+
+1. Run [`supabase/migration-schools-table.sql`](supabase/migration-schools-table.sql)
+   in the SQL editor to create the `schools` table.
+2. Ensure `.env.local` has `SUPABASE_SECRET_KEY` set.
+3. Preview without writing: `npm run scrape:schools:dry`
+4. Scrape + populate the DB: `npm run scrape:schools`
+
+The scraper ([`scripts/scrape-schools.mjs`](scripts/scrape-schools.mjs)) queries the
+Overpass API for `amenity=school` across each city, classifies every school into a
+known area by nearest neighbourhood, and upserts ~1,300 schools. The city → area →
+school pickers then read from the DB (via `/api/schools`), falling back to the static
+catalog when the table is empty.
+
 ## Demo accounts (password: `password123`)
 
 | Role   | Email                       |
@@ -72,19 +89,38 @@ Open http://localhost:3000.
 The parent is pre-linked to driver Imran, who has a seeded live route — open the
 parent dashboard to see live tracking, the alerts feed, and the WhatsApp bot.
 
-## Optional: real WhatsApp (Meta Cloud API)
+## Optional: real WhatsApp (Twilio)
 
-1. In the [Meta App Dashboard](https://developers.facebook.com/apps), add the
-   **WhatsApp** product. From **API Setup**, copy the **Phone number ID** and a
-   **temporary access token** (or create a permanent System User token).
-2. Set `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, and choose any
-   `WHATSAPP_VERIFY_TOKEN` string in `.env.local`.
-3. Expose your dev server (e.g. `ngrok http 3000`). In **WhatsApp →
-   Configuration → Webhook**, set the Callback URL to
-   `https://<your-tunnel>/api/whatsapp/webhook`, enter the same Verify Token,
-   and subscribe to the **messages** field.
-4. Add tester numbers under API Setup, then text your number from a registered
-   parent's WhatsApp. The bot replies via the Cloud API.
+1. In the [Twilio Console](https://console.twilio.com), enable the
+   **WhatsApp Sandbox** (Messaging → Try it out → Send a WhatsApp message) and
+   join it from your phone by sending the given `join …` code.
+2. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and
+   `TWILIO_WHATSAPP_FROM=whatsapp:+14155238886` (the sandbox number) in `.env.local`.
+3. Expose your dev server (e.g. `ngrok http 3000`). In the sandbox's
+   **Sandbox settings**, set **"When a message comes in"** to
+   `https://<your-tunnel>/api/whatsapp/webhook` (HTTP POST).
+4. Text the sandbox number from a registered parent's WhatsApp (e.g.
+   "where is the van?"). The bot replies via TwiML, and proactive
+   departed/arrived/anomaly alerts are sent via the Twilio API.
+
+### Proactive alerts via an approved template (TWILIO_CONTENT_SID)
+
+Bot *replies* are session messages, but *proactive* alerts (departed/arrived/
+anomaly) are business-initiated and need an approved WhatsApp **template** to be
+delivered outside the 24-hour window. Set `TWILIO_CONTENT_SID` and our code sends
+alerts via the template, passing the alert text as variable `{{1}}`.
+
+1. Twilio Console → **Messaging → Content Template Builder → Create new**.
+2. Name it (e.g. `vansafe_alert`), language **English**, type **Text**.
+3. Body: `{{1}}` (add a sample like "Your child's van has departed.").
+   If a body of only `{{1}}` is rejected, use `VanSafe 🚐 {{1}}`.
+4. **Submit for WhatsApp approval**, category **Utility**. Approval is usually
+   minutes to a few hours.
+5. Once **Approved**, copy the template's **Content SID** (`HX…`) and set
+   `TWILIO_CONTENT_SID=HX…` in `.env.local`, then restart.
+
+Without `TWILIO_CONTENT_SID`, alerts fall back to free-form `Body` (fine for the
+sandbox within the 24h window).
 
 ## Key paths
 

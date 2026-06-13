@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { CITIES, VEHICLE_TYPES } from "@/lib/constants";
+import { CITIES } from "@/lib/constants";
+import ParentAreaSchoolPicker from "@/components/ParentAreaSchoolPicker";
+import DriverAreaSchoolPicker from "@/components/DriverAreaSchoolPicker";
+import VehiclePicker, { type VehicleValue, EMPTY_VEHICLE } from "@/components/VehiclePicker";
+import { User as RoleUser, Bus as RoleBus } from "@/components/icons";
 import type { Role } from "@/lib/types";
 
 export default function RegisterPage() {
@@ -17,16 +21,47 @@ export default function RegisterPage() {
     whatsapp: "",
     city: "",
     // driver-only vehicle info
-    vehicle_type: "Van",
     plate: "",
-    capacity: "12",
-    make_model: "",
     color: "",
     year: "",
   });
+  const [vehicle, setVehicle] = useState<VehicleValue>(EMPTY_VEHICLE);
+  // Area/school selections (separate from `form` because they're arrays/objects)
+  const [parentArea, setParentArea] = useState("");
+  const [parentSchool, setParentSchool] = useState("");
+  const [childName, setChildName] = useState("");
+  const [driverAreas, setDriverAreas] = useState<string[]>([]);
+  const [driverSchools, setDriverSchools] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  async function finishProfile(supabase: ReturnType<typeof createClient>, userId: string) {
+    if (role === "parent") {
+      await supabase
+        .from("profiles")
+        .update({ area: parentArea, school: parentSchool })
+        .eq("id", userId);
+      // Create the parent's first child; more can be added from the dashboard.
+      if (childName.trim()) {
+        await supabase.from("children").insert({
+          parent_id: userId,
+          name: childName.trim(),
+          school: parentSchool,
+          pickup_address: "",
+        });
+      }
+    } else {
+      await supabase
+        .from("drivers")
+        .update({
+          areas: driverAreas,
+          schools: driverSchools,
+          area: driverAreas[0] ?? "",
+        })
+        .eq("id", userId);
+    }
+  }
 
   function update(k: keyof typeof form, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -51,10 +86,12 @@ export default function RegisterPage() {
     };
     if (role === "driver") {
       Object.assign(metadata, {
-        vehicle_type: form.vehicle_type,
+        vehicle_type: vehicle.vehicle_type,
+        vehicle_model: vehicle.vehicle_model,
         plate: form.plate,
-        capacity: form.capacity,
-        make_model: form.make_model,
+        capacity: vehicle.capacity,
+        official_capacity: vehicle.official_capacity || vehicle.capacity,
+        make_model: vehicle.make_model,
         color: form.color,
         year: form.year,
       });
@@ -72,7 +109,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (data.session) {
+    if (data.session && data.user) {
+      await finishProfile(supabase, data.user.id);
       router.push(role === "driver" ? "/driver/dashboard" : "/parent/dashboard");
       router.refresh();
       return;
@@ -82,11 +120,13 @@ export default function RegisterPage() {
       email: form.email,
       password: form.password,
     });
-    setBusy(false);
-    if (signIn.session) {
+    if (signIn.session && signIn.user) {
+      await finishProfile(supabase, signIn.user.id);
+      setBusy(false);
       router.push(role === "driver" ? "/driver/dashboard" : "/parent/dashboard");
       router.refresh();
     } else {
+      setBusy(false);
       setNotice("Account created! Please check your email to confirm, then log in.");
     }
   }
@@ -103,11 +143,17 @@ export default function RegisterPage() {
             type="button"
             onClick={() => setRole(r)}
             className={`card p-4 text-left transition ${
-              role === r ? "ring-2 ring-indigo-500" : "hover:bg-slate-50"
+              role === r ? "ring-2 ring-brand-600" : "hover:bg-slate-50"
             }`}
           >
-            <div className="text-2xl">{r === "parent" ? "👨‍👩‍👧" : "🚐"}</div>
-            <div className="mt-1 font-semibold capitalize text-slate-900">
+            <div
+              className={`grid h-10 w-10 place-items-center rounded-xl ${
+                role === r ? "bg-brand-700 text-white" : "bg-brand-50 text-brand-700"
+              }`}
+            >
+              {r === "parent" ? <RoleUser size={20} /> : <RoleBus size={20} />}
+            </div>
+            <div className="mt-2 font-semibold capitalize text-slate-900">
               {r === "parent" ? "Parent" : "Van Driver"}
             </div>
             <div className="text-xs text-slate-500">
@@ -144,35 +190,62 @@ export default function RegisterPage() {
           </select>
         </div>
 
+        {role === "parent" && form.city && (
+          <div className="card space-y-2 bg-slate-50 p-3">
+            <p className="text-sm font-semibold text-slate-700">Your first child</p>
+            <div>
+              <label className="label">Child&apos;s name</label>
+              <input
+                className="input"
+                value={childName}
+                onChange={(e) => setChildName(e.target.value)}
+                placeholder="e.g. Ayesha"
+              />
+            </div>
+            <p className="pt-1 text-xs text-slate-400">
+              Add more children later from your dashboard.
+            </p>
+            <ParentAreaSchoolPicker
+              city={form.city}
+              area={parentArea}
+              school={parentSchool}
+              onChange={(a, s) => {
+                setParentArea(a);
+                setParentSchool(s);
+              }}
+            />
+          </div>
+        )}
+
+        {role === "driver" && form.city && (
+          <div className="card space-y-2 bg-slate-50 p-3">
+            <p className="text-sm font-semibold text-slate-700">Areas &amp; schools you serve</p>
+            <DriverAreaSchoolPicker
+              city={form.city}
+              areas={driverAreas}
+              schools={driverSchools}
+              onChange={(a, s) => {
+                setDriverAreas(a);
+                setDriverSchools(s);
+              }}
+            />
+          </div>
+        )}
+
         {role === "driver" && (
           <div className="card space-y-3 bg-slate-50 p-3">
             <p className="text-sm font-semibold text-slate-700">Your vehicle</p>
+            <VehiclePicker value={vehicle} onChange={setVehicle} />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Vehicle type</label>
-                <select className="input" value={form.vehicle_type} onChange={(e) => update("vehicle_type", e.target.value)}>
-                  {VEHICLE_TYPES.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
-              </div>
               <div>
                 <label className="label">Reg. plate</label>
                 <input className="input" required placeholder="ABC-123" value={form.plate} onChange={(e) => update("plate", e.target.value)} />
               </div>
               <div>
-                <label className="label">Make & model</label>
-                <input className="input" required placeholder="Toyota Hiace" value={form.make_model} onChange={(e) => update("make_model", e.target.value)} />
-              </div>
-              <div>
                 <label className="label">Colour</label>
                 <input className="input" required placeholder="White" value={form.color} onChange={(e) => update("color", e.target.value)} />
               </div>
-              <div>
-                <label className="label">Seating capacity</label>
-                <input className="input" type="number" min={1} required value={form.capacity} onChange={(e) => update("capacity", e.target.value)} />
-              </div>
-              <div>
+              <div className="col-span-2">
                 <label className="label">Year <span className="text-slate-400">(optional)</span></label>
                 <input className="input" type="number" min={1980} max={2030} placeholder="2018" value={form.year} onChange={(e) => update("year", e.target.value)} />
               </div>
@@ -193,7 +266,7 @@ export default function RegisterPage() {
 
       <p className="mt-4 text-center text-sm text-slate-500">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-indigo-600">
+        <Link href="/login" className="font-medium text-brand-700">
           Log in
         </Link>
       </p>

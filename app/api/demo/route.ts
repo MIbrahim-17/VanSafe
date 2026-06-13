@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { alertBody, sendWhatsApp } from "@/lib/whatsapp";
 import { explainAnomaly } from "@/lib/gemini";
-import type { LinkRow } from "@/lib/types";
+import type { Child } from "@/lib/types";
 
 async function authLinkedParent(driverId: string) {
   const supabase = createClient();
@@ -20,14 +20,15 @@ async function authLinkedParent(driverId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data: link } = await supabase
-    .from("links")
+  const { data: child } = await supabase
+    .from("children")
     .select("*")
     .eq("parent_id", user.id)
     .eq("driver_id", driverId)
+    .limit(1)
     .maybeSingle();
-  if (!link) return null;
-  return { userId: user.id, link: link as LinkRow };
+  if (!child) return null;
+  return { userId: user.id, child: child as Child };
 }
 
 export async function POST(req: Request) {
@@ -143,7 +144,7 @@ export async function POST(req: Request) {
 
 async function emitAlert(
   admin: ReturnType<typeof createAdminClient>,
-  ctx: { userId: string; link: LinkRow },
+  ctx: { userId: string; child: Child },
   driverId: string,
   type: "departed" | "arrived"
 ) {
@@ -153,7 +154,7 @@ async function emitAlert(
     .eq("id", driverId)
     .single();
   const driverName = (driverProfile as { name: string } | null)?.name ?? "Your driver";
-  const message = alertBody(type, driverName, ctx.link.child_name);
+  const message = alertBody(type, driverName, ctx.child.name);
   await admin.from("alerts").insert({
     parent_id: ctx.userId,
     driver_id: driverId,

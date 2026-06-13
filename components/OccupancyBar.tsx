@@ -1,5 +1,10 @@
-import { occupancyColor } from "@/lib/utils";
+import { capacityStatus } from "@/lib/utils";
+import { Alert } from "./icons";
 
+/**
+ * Occupancy vs the OFFICIAL seating capacity (the safety benchmark).
+ * Pass `capacity` = official_capacity so the limit cannot be manipulated.
+ */
 export default function OccupancyBar({
   occupancy,
   capacity,
@@ -7,20 +12,23 @@ export default function OccupancyBar({
   occupancy: number;
   capacity: number;
 }) {
-  const { bar, text, label } = occupancyColor(occupancy, capacity);
-  const pct = capacity > 0 ? Math.min(100, (occupancy / capacity) * 100) : 100;
+  const s = capacityStatus(occupancy, capacity);
   const seatsFree = Math.max(0, capacity - occupancy);
 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs">
-        <span className={`font-medium ${text}`}>{label}</span>
+        <span className={`inline-flex items-center gap-1 font-medium ${s.text}`}>
+          {s.over && <Alert size={13} />}
+          {s.label}
+        </span>
         <span className="text-slate-500">
-          {occupancy}/{capacity} seats · {seatsFree} free
+          {occupancy}/{capacity} seats
+          {s.over ? "" : ` · ${seatsFree} free`}
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-        <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${s.pct}%` }} />
       </div>
     </div>
   );

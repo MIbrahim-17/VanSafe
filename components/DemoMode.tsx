@@ -9,6 +9,7 @@
  * would for a real driver. No production tracking code is touched.
  */
 import { useMemo, useRef, useState, useEffect } from "react";
+import { Play, Pause, Reset, Sparkles } from "./icons";
 
 type LatLng = [number, number];
 type Status = "idle" | "running" | "paused" | "done";
@@ -72,7 +73,17 @@ function buildSteps(waypoints: LatLng[]): LatLng[] {
   return steps;
 }
 
-export default function DemoMode({ driverId }: { driverId: string }) {
+export interface DemoTarget {
+  childId: string;
+  childName: string;
+  driverId: string;
+  driverName: string;
+}
+
+export default function DemoMode({ targets }: { targets: DemoTarget[] }) {
+  const [selectedId, setSelectedId] = useState(targets[0]?.childId ?? "");
+  const active = targets.find((t) => t.childId === selectedId) ?? targets[0];
+
   const [routeId, setRouteId] = useState(ROUTES[0].id);
   const [status, setStatus] = useState<Status>("idle");
   const [speed, setSpeed] = useState<"normal" | "fast">("normal");
@@ -90,6 +101,8 @@ export default function DemoMode({ driverId }: { driverId: string }) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stepsRef = useRef(steps);
   stepsRef.current = steps;
+  const driverIdRef = useRef(active.driverId);
+  driverIdRef.current = active.driverId;
 
   useEffect(() => () => stopTimer(), []);
 
@@ -99,7 +112,7 @@ export default function DemoMode({ driverId }: { driverId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
-        driverId,
+        driverId: driverIdRef.current,
         lat: point?.[0],
         lng: point?.[1],
       }),
@@ -179,15 +192,41 @@ export default function DemoMode({ driverId }: { driverId: string }) {
   const pct = steps.length > 1 ? Math.round((progress / (steps.length - 1)) * 100) : 0;
 
   return (
-    <div className="card border-2 border-dashed border-fuchsia-300 bg-fuchsia-50/40 p-4">
+    <div className="card border-dashed p-4">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-semibold text-fuchsia-800">Demo Mode 🎬</h2>
-        <span className="badge bg-fuchsia-200 text-fuchsia-800 capitalize">{status}</span>
+        <h2 className="inline-flex items-center gap-2 font-semibold text-slate-900">
+          <Sparkles size={16} className="text-brand-600" /> Demo Mode
+        </h2>
+        <span className="badge bg-slate-100 capitalize text-slate-600">{status}</span>
       </div>
-      <p className="mb-3 text-xs text-fuchsia-700/80">
+      <p className="mb-3 text-xs text-slate-500">
         Simulates a van on a Lahore route — writes real pings, so the map &amp; alerts
         above react exactly like a live driver.
       </p>
+
+      {targets.length > 1 && (
+        <>
+          <label className="label">Simulate for</label>
+          <select
+            className="input mb-3"
+            value={selectedId}
+            onChange={(e) => {
+              stopTimer();
+              setStatus("idle");
+              idxRef.current = 0;
+              setProgress(0);
+              setSelectedId(e.target.value);
+            }}
+            disabled={status === "running" || status === "paused"}
+          >
+            {targets.map((t) => (
+              <option key={t.childId} value={t.childId}>
+                {t.childName} — {t.driverName}&apos;s van
+              </option>
+            ))}
+          </select>
+        </>
+      )}
 
       <label className="label">Route</label>
       <select
@@ -203,12 +242,12 @@ export default function DemoMode({ driverId }: { driverId: string }) {
 
       {(status === "running" || status === "paused" || status === "done") && (
         <div className="mb-3">
-          <div className="mb-1 flex justify-between text-xs text-fuchsia-700">
-            <span>{status === "done" ? "Arrived 🏫" : `Step ${progress}/${steps.length - 1}`}</span>
+          <div className="mb-1 flex justify-between text-xs text-slate-500">
+            <span>{status === "done" ? "Arrived" : `Step ${progress}/${steps.length - 1}`}</span>
             <span>{pct}%</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-fuchsia-100">
-            <div className="h-full rounded-full bg-fuchsia-500" style={{ width: `${pct}%` }} />
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-brand-600 transition-all duration-500" style={{ width: `${pct}%` }} />
           </div>
         </div>
       )}
@@ -219,10 +258,10 @@ export default function DemoMode({ driverId }: { driverId: string }) {
           <button
             key={s}
             onClick={() => changeSpeed(s)}
-            className={`rounded-full px-3 py-1 text-xs font-medium capitalize ${
+            className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${
               speed === s
-                ? "bg-fuchsia-600 text-white"
-                : "border border-slate-300 bg-white text-slate-600"
+                ? "bg-brand-700 text-white"
+                : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
             }`}
           >
             {s === "normal" ? "Normal (~36 km/h)" : "Fast"}
@@ -232,18 +271,18 @@ export default function DemoMode({ driverId }: { driverId: string }) {
 
       <div className="flex flex-wrap gap-2">
         {status === "idle" || status === "done" ? (
-          <button onClick={start} className="btn bg-fuchsia-600 text-white hover:bg-fuchsia-700">
-            ▶ Start Simulation — سمولیشن شروع کریں
+          <button onClick={start} className="btn-primary">
+            <Play size={15} /> Start Simulation — سمولیشن شروع کریں
           </button>
         ) : status === "running" ? (
-          <button onClick={pause} className="btn-ghost">⏸ Pause</button>
+          <button onClick={pause} className="btn-ghost"><Pause size={15} /> Pause</button>
         ) : (
-          <button onClick={resume} className="btn bg-fuchsia-600 text-white hover:bg-fuchsia-700">
-            ▶ Resume
+          <button onClick={resume} className="btn-primary">
+            <Play size={15} /> Resume
           </button>
         )}
         {status !== "idle" && (
-          <button onClick={reset} className="btn-ghost">↺ Reset</button>
+          <button onClick={reset} className="btn-ghost"><Reset size={15} /> Reset</button>
         )}
       </div>
 

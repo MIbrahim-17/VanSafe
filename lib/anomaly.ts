@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { explainAnomaly } from "@/lib/gemini";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { distanceMeters, minutesAgo } from "@/lib/utils";
-import type { AlertType, LinkRow, LocationPing, Profile } from "@/lib/types";
+import type { AlertType, LocationPing, Profile } from "@/lib/types";
 
 const STATIONARY_MIN = 15; // minutes stopped before alerting
 const STATIONARY_RADIUS_M = 60; // "same spot" tolerance
@@ -84,21 +84,24 @@ async function fire(
   type: "stationary" | "route_deviation",
   details: string
 ): Promise<boolean> {
-  const { data: links } = await admin
-    .from("links")
-    .select("*")
+  const { data: kids } = await admin
+    .from("children")
+    .select("parent_id")
     .eq("driver_id", driverId);
-  const linkRows = (links as LinkRow[] | null) ?? [];
-  if (!linkRows.length) return false;
+  // One alert per parent even if they have several children on this van.
+  const parentIds = Array.from(
+    new Set(((kids as { parent_id: string }[] | null) ?? []).map((c) => c.parent_id))
+  );
+  if (!parentIds.length) return false;
 
   let any = false;
-  for (const link of linkRows) {
+  for (const parentId of parentIds) {
     // Dedupe: skip if same alert type fired for this parent recently.
     const since = new Date(Date.now() - DEDUPE_MIN * 60000).toISOString();
     const { data: existing } = await admin
       .from("alerts")
       .select("id")
-      .eq("parent_id", link.parent_id)
+      .eq("parent_id", parentId)
       .eq("driver_id", driverId)
       .eq("type", type)
       .gte("created_at", since)
@@ -108,13 +111,13 @@ async function fire(
     const { data: parent } = await admin
       .from("profiles")
       .select("*")
-      .eq("id", link.parent_id)
+      .eq("id", parentId)
       .single();
     const p = parent as Profile | null;
 
     const message = await explainAnomaly(type, details, "en");
     await admin.from("alerts").insert({
-      parent_id: link.parent_id,
+      parent_id: parentId,
       driver_id: driverId,
       type,
       message,

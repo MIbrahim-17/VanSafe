@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Bus } from "./icons";
 
 interface Msg {
   from: "user" | "bot";
@@ -11,7 +12,7 @@ const QUICK = ["Where is the van?", "وین کہاں ہے؟", "Is the van moving
 
 export default function WhatsAppSimPanel({ whatsapp }: { whatsapp: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { from: "bot", text: "👋 As-salamu alaikum! Ask me where your child's van is — in English or Urdu." },
+    { from: "bot", text: "As-salamu alaikum! Ask me where your child's van is — in English or Urdu." },
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,7 +42,7 @@ export default function WhatsAppSimPanel({ whatsapp }: { whatsapp: string }) {
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center gap-2 bg-[#075E54] px-4 py-3 text-white">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-white/20">🚐</span>
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-white/20"><Bus size={18} /></span>
         <div>
           <p className="text-sm font-semibold leading-tight">VanSafe Bot</p>
           <p className="text-xs text-white/70">WhatsApp simulator</p>

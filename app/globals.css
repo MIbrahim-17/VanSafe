@@ -3,8 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --background: #f6f8fb;
-  --foreground: #0f172a;
+  --background: #fbfcfd;
+  --foreground: #0f1b14;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html,
@@ -17,6 +21,17 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: var(--font-geist-sans), system-ui, Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight text-slate-900;
+    font-feature-settings: "ss01", "cv01";
+  }
 }
 
 @layer utilities {
@@ -24,30 +39,88 @@ body {
     text-wrap: balance;
   }
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
+  }
+  /* Cards that respond to hover with a gentle lift. */
+  .card-hover {
+    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift;
+  }
+  /* Small uppercase section eyebrow label. */
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-brand-700;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-indigo-600 text-white hover:bg-indigo-700;
+    @apply btn bg-brand-700 text-white hover:bg-brand-800 focus-visible:ring-brand-300;
   }
   .btn-ghost {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-300;
   }
   .btn-green {
-    @apply btn bg-emerald-600 text-white hover:bg-emerald-700;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-300;
   }
   .btn-red {
-    @apply btn bg-rose-600 text-white hover:bg-rose-700;
+    @apply btn bg-rose-700 text-white hover:bg-rose-800 focus-visible:ring-rose-300;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100;
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-400;
   }
   .label {
     @apply mb-1 block text-sm font-medium text-slate-700;
   }
   .badge {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  /* Subtle institutional surface for grouped sections. */
+  .surface {
+    @apply rounded-2xl border border-slate-200 bg-slate-50;
+  }
+
+  /* --- Scroll-reveal motion (progressive page entrance) ---
+     Elements start translated + faded; .is-visible (added by the Reveal
+     component once in view) animates them gently into place. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* One-shot entrance for above-the-fold content (no observer needed). */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
   }
 }

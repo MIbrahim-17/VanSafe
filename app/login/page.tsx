@@ -59,7 +59,7 @@ export default function LoginPage() {
 
       <p className="mt-4 text-center text-sm text-slate-500">
         New to VanSafe?{" "}
-        <Link href="/register" className="font-medium text-indigo-600">
+        <Link href="/register" className="font-medium text-brand-700">
           Create an account
         </Link>
       </p>

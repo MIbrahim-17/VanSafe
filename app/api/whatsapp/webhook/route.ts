@@ -1,43 +1,48 @@
-import { handleIncoming, sendWhatsApp } from "@/lib/whatsapp";
+import { handleIncoming, verifyTwilioSignature } from "@/lib/whatsapp";
 
 /**
- * GET /api/whatsapp/webhook — Meta webhook verification handshake.
- * Set this URL + your Verify Token in Meta App Dashboard -> WhatsApp ->
- * Configuration -> Webhook. Meta calls this once with hub.challenge.
- */
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const mode = url.searchParams.get("hub.mode");
-  const token = url.searchParams.get("hub.verify_token");
-  const challenge = url.searchParams.get("hub.challenge");
-
-  if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    return new Response(challenge ?? "", { status: 200 });
-  }
-  return new Response("Forbidden", { status: 403 });
-}
-
-/**
- * POST /api/whatsapp/webhook — inbound WhatsApp messages from Meta.
- * Unlike Twilio (TwiML), the reply is sent back via the Cloud API; we just
- * acknowledge with 200 so Meta doesn't retry.
+ * POST /api/whatsapp/webhook — Twilio WhatsApp inbound webhook.
+ * In the Twilio Console (WhatsApp sandbox or a number), set "When a message
+ * comes in" to this URL. Twilio sends form-encoded fields (From, Body); we reply
+ * with TwiML so the bot's answer is delivered back to the sender.
  */
 export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const value = body?.entry?.[0]?.changes?.[0]?.value;
-    const message = value?.messages?.[0];
+  const form = await req.formData();
+  const params: Record<string, string> = {};
+  form.forEach((v, k) => {
+    params[k] = String(v);
+  });
 
-    if (message?.type === "text") {
-      const from: string = message.from; // E.164 digits, no '+'
-      const text: string = message.text?.body ?? "";
-      const reply = await handleIncoming(from, text);
-      await sendWhatsApp(from, reply);
-    }
-  } catch (err) {
-    console.error("WhatsApp webhook error:", err);
+  // Reconstruct the public URL Twilio signed (override via TWILIO_WEBHOOK_URL).
+  const proto = req.headers.get("x-forwarded-proto") ?? "https";
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "";
+  const reqUrl = new URL(req.url);
+  const url =
+    process.env.TWILIO_WEBHOOK_URL ?? `${proto}://${host}${reqUrl.pathname}${reqUrl.search}`;
+
+  const signature = req.headers.get("x-twilio-signature");
+  if (!verifyTwilioSignature(url, params, signature)) {
+    console.warn("Rejected webhook: invalid Twilio signature. Reconstructed URL:", url);
+    return new Response("Invalid signature", { status: 403 });
   }
 
-  // Always 200 — Meta retries aggressively on non-200 responses.
-  return new Response("OK", { status: 200 });
+  const from = params.From ?? ""; // e.g. "whatsapp:+923001112233"
+  const body = params.Body ?? "";
+
+  const reply = await handleIncoming(from, body);
+
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(
+    reply
+  )}</Message></Response>`;
+
+  return new Response(twiml, { headers: { "Content-Type": "text/xml" } });
+}
+
+function escapeXml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }

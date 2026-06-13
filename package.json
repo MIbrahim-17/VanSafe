@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "cert": "node scripts/gen-cert.mjs",
+    "dev:https": "next dev -H 0.0.0.0 --experimental-https --experimental-https-key ./certificates/localhost-key.pem --experimental-https-cert ./certificates/localhost.pem",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "scrape:schools": "node scripts/scrape-schools.mjs",
+    "scrape:schools:dry": "node scripts/scrape-schools.mjs --dry-run"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
