@@ -120,7 +120,7 @@ export default function TrackPage() {
   return (
     <div className="mx-auto max-w-xl space-y-5 py-4 text-center">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Live Tracking</h1>
+        <h1 className="text-title1 text-slate-900">Live Tracking</h1>
         <p className="text-sm text-slate-500">
           One tap to start sharing your location with linked parents.
         </p>

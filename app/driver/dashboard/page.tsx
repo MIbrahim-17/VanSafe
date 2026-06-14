@@ -69,8 +69,8 @@ export default async function DriverDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Hi, {profile.name}</h1>
-          <p className="flex items-center gap-1.5 text-sm text-slate-500">
+          <h1 className="text-title1 text-slate-900">Hi, {profile.name}</h1>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[15px] text-slate-500">
             Your VanSafe driver dashboard ·
             <span className="inline-flex items-center gap-1 font-medium text-brand-700">
               <MapPin size={14} /> {cityLabel(profile.city)}
@@ -87,21 +87,17 @@ export default async function DriverDashboard() {
 
       {/* Fuel savings */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="card flex flex-col justify-center bg-gradient-to-br from-brand-50 to-white p-5 ring-1 ring-brand-100">
-          <p className="text-sm font-medium text-brand-800">Saved this month — اس مہینے بچائے</p>
-          <p className="mt-1 text-4xl font-extrabold tracking-tight text-brand-700">
-            {formatPKR(savedMonth)}
-          </p>
-          <p className="mt-1 text-xs text-brand-700/70">
-            in fuel, vs unoptimized routes
-          </p>
-          <div className="mt-4 flex gap-4 text-sm">
+        <div className="card flex flex-col justify-center bg-gradient-to-br from-brand-50 to-white p-6">
+          <p className="text-[13px] font-medium text-brand-800">Saved this month — اس مہینے بچائے</p>
+          <p className="text-largetitle mt-1 text-brand-700">{formatPKR(savedMonth)}</p>
+          <p className="mt-1 text-footnote text-brand-700/70">in fuel, vs unoptimized routes</p>
+          <div className="mt-5 flex gap-6 text-[15px]">
             <div>
-              <p className="text-xs text-slate-400">Today</p>
+              <p className="text-footnote text-slate-400">Today</p>
               <p className="font-semibold text-slate-800">{formatPKR(savedToday)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">This week</p>
+              <p className="text-footnote text-slate-400">This week</p>
               <p className="font-semibold text-slate-800">{formatPKR(savedWeek)}</p>
             </div>
           </div>
@@ -109,7 +105,7 @@ export default async function DriverDashboard() {
 
         <div className="card p-5 lg:col-span-2">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+            <h2 className="text-title3 flex items-center gap-2 text-slate-900">
               <Sparkles size={16} className="text-brand-600" /> Daily fuel cost — last 30 days
             </h2>
             <Link href="/driver/route" className="text-sm font-medium text-brand-700">
@@ -142,7 +138,7 @@ export default async function DriverDashboard() {
       </div>
 
       <div className="card p-4">
-        <h2 className="mb-3 font-semibold text-slate-900">Passengers</h2>
+        <h2 className="text-title3 mb-3 text-slate-900">Passengers</h2>
         {childRows.length === 0 ? (
           <p className="text-sm text-slate-500">
             No children linked yet. Complete your{" "}

@@ -81,8 +81,8 @@ export default async function DriverRoutePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Route optimization</h1>
-        <p className="flex items-center gap-1.5 text-sm text-slate-500">
+        <h1 className="text-title1 text-slate-900">Route optimization</h1>
+        <p className="mt-0.5 flex items-center gap-1.5 text-[15px] text-slate-500">
           Plan the most efficient pickup &amp; drop-off routes ·
           <span className="inline-flex items-center gap-1 font-medium text-brand-700">
             <MapPin size={14} /> {cityLabel(profile.city)}

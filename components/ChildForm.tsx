@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import ParentAreaSchoolPicker from "./ParentAreaSchoolPicker";
+import LocationPicker from "./LocationPicker";
 
 export interface ChildValues {
   name: string;
   school: string;
   pickup_address: string;
+  pickup_lat: number | null;
+  pickup_lng: number | null;
 }
 
 /** Shared add/edit form for a child (name, school via city→area→school, pickup). */
@@ -31,6 +34,10 @@ export default function ChildForm({
   const [area, setArea] = useState("");
   const [school, setSchool] = useState(initial?.school ?? "");
   const [pickup, setPickup] = useState(initial?.pickup_address ?? "");
+  const [lat, setLat] = useState<number | null>(initial?.pickup_lat ?? null);
+  const [lng, setLng] = useState<number | null>(initial?.pickup_lng ?? null);
+
+  const pinned = lat != null && lng != null;
 
   return (
     <div className="space-y-3">
@@ -52,15 +59,45 @@ export default function ChildForm({
       </div>
       <div>
         <label className="label">Pickup address</label>
-        <input className="input" value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="House, block, area" />
+        <div className="flex gap-2">
+          <input
+            className="input"
+            value={pickup}
+            onChange={(e) => setPickup(e.target.value)}
+            placeholder="House, block, area"
+          />
+          <LocationPicker
+            value={{ lat, lng, address: pickup }}
+            city={city}
+            title="Pin pickup location"
+            onChange={(v) => {
+              setLat(v.lat);
+              setLng(v.lng);
+              setPickup(v.address);
+            }}
+          />
+        </div>
+        {!pinned && (
+          <p className="mt-1 text-xs text-amber-600">
+            Drop a pin so the driver can route to the exact pickup spot.
+          </p>
+        )}
       </div>
       {error && <p className="text-sm text-rose-600">{error}</p>}
       <div className="flex gap-2">
         <button
           type="button"
           className="btn-primary"
-          disabled={busy || !name.trim()}
-          onClick={() => onSubmit({ name: name.trim(), school, pickup_address: pickup })}
+          disabled={busy || !name.trim() || !pinned}
+          onClick={() =>
+            onSubmit({
+              name: name.trim(),
+              school,
+              pickup_address: pickup,
+              pickup_lat: lat,
+              pickup_lng: lng,
+            })
+          }
         >
           {busy ? "Saving…" : submitLabel}
         </button>

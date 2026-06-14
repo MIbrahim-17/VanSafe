@@ -3,12 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --background: #fbfcfd;
-  --foreground: #0f1b14;
+  /* Apple-style light system colours */
+  --background: #f5f5f7; /* system grouped background */
+  --foreground: #1d1d1f; /* primary label */
+  --separator: rgba(0, 0, 0, 0.07); /* hairline */
 }
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -20,9 +23,16 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-geist-sans), system-ui, Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  letter-spacing: -0.006em; /* subtle Apple tracking */
+}
+
+/* No blue tap flash on touch — Apple controls handle their own press state. */
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer base {
@@ -38,54 +48,135 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* ---- Apple type scale (San-Francisco-style hierarchy) ---- */
+  .text-largetitle {
+    font-size: 2.25rem;
+    line-height: 1.07;
+    letter-spacing: -0.021em;
+    font-weight: 700;
+  }
+  @media (min-width: 640px) {
+    .text-largetitle {
+      font-size: 3rem;
+    }
+  }
+  .text-title1 {
+    font-size: 1.75rem;
+    line-height: 1.12;
+    letter-spacing: -0.019em;
+    font-weight: 700;
+  }
+  .text-title2 {
+    font-size: 1.375rem;
+    line-height: 1.18;
+    letter-spacing: -0.016em;
+    font-weight: 700;
+  }
+  .text-title3 {
+    font-size: 1.1875rem;
+    line-height: 1.22;
+    letter-spacing: -0.012em;
+    font-weight: 600;
+  }
+  .text-headline {
+    font-size: 1.0625rem;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
+    font-weight: 600;
+  }
+  .text-body {
+    font-size: 1.0625rem;
+    line-height: 1.46;
+    letter-spacing: -0.006em;
+  }
+  .text-footnote {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+
+  /* ---- Surfaces ---- */
   .card {
-    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
+    @apply rounded-[20px] border border-black/[0.06] bg-white shadow-card;
   }
-  /* Cards that respond to hover with a gentle lift. */
   .card-hover {
-    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift;
+    @apply transition-all duration-300 ease-apple hover:-translate-y-1 hover:shadow-lift;
   }
-  /* Small uppercase section eyebrow label. */
+  .surface {
+    @apply rounded-[20px] border border-black/[0.06] bg-white/60;
+  }
   .eyebrow {
-    @apply text-xs font-semibold uppercase tracking-[0.18em] text-brand-700;
+    @apply text-[13px] font-semibold tracking-tight text-brand-700;
   }
+  .hairline {
+    border-color: var(--separator);
+  }
+
+  /* Frosted material — used for the sticky navigation bar. */
+  .material-bar {
+    @apply border-b border-black/[0.06] bg-white/[0.72];
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* ---- Controls ---- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition-all duration-150 ease-apple active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100;
   }
+  /* Filled accent (primary action) */
   .btn-primary {
-    @apply btn bg-brand-700 text-white hover:bg-brand-800 focus-visible:ring-brand-300;
-  }
-  .btn-ghost {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-300;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
   }
   .btn-green {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-300;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+  /* Tinted (low-emphasis accent) */
+  .btn-tinted {
+    @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
+  }
+  /* Secondary = filled gray (Apple's default secondary, not an outline) */
+  .btn-ghost {
+    @apply btn bg-slate-100 text-slate-900 hover:bg-slate-200;
   }
   .btn-red {
-    @apply btn bg-rose-700 text-white hover:bg-rose-800 focus-visible:ring-rose-300;
+    @apply btn bg-rose-600 text-white hover:bg-rose-700 focus-visible:ring-rose-500/25;
   }
+
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-400;
+    @apply w-full rounded-xl border border-black/[0.08] bg-white px-3.5 py-2.5 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/[0.15] disabled:bg-slate-50 disabled:text-slate-400;
   }
   .label {
-    @apply mb-1 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-[13px] font-medium text-slate-500;
   }
   .badge {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
   }
-  /* Subtle institutional surface for grouped sections. */
-  .surface {
-    @apply rounded-2xl border border-slate-200 bg-slate-50;
+
+  /* Apple segmented control */
+  .segmented {
+    @apply inline-flex rounded-[10px] bg-slate-100 p-0.5;
+  }
+  .segment {
+    @apply rounded-lg px-3.5 py-1.5 text-[13px] font-medium text-slate-600 transition-all duration-200 ease-apple;
+  }
+  .segment-on {
+    @apply bg-white text-slate-900 shadow-sm;
   }
 
-  /* --- Scroll-reveal motion (progressive page entrance) ---
-     Elements start translated + faded; .is-visible (added by the Reveal
-     component once in view) animates them gently into place. */
+  /* Grouped inset list (Settings-style rows) */
+  .list-group {
+    @apply overflow-hidden rounded-[18px] border border-black/[0.06] bg-white;
+  }
+  .list-row {
+    @apply flex items-center gap-3 border-b border-black/[0.05] px-4 py-3 last:border-b-0;
+  }
+
+  /* ---- Scroll-reveal motion (progressive entrance) ---- */
   .reveal {
     opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateY(18px);
+    transition: opacity 0.6s cubic-bezier(0.32, 0.72, 0, 1),
+      transform 0.6s cubic-bezier(0.32, 0.72, 0, 1);
     will-change: opacity, transform;
   }
   .reveal.is-visible {
@@ -105,11 +196,41 @@ body {
   }
 }
 
-/* One-shot entrance for above-the-fold content (no observer needed). */
+/* Apple sheet: slides up from the bottom with a spring ease. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-sheet {
+  animation: sheet-up 0.38s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.animate-overlay {
+  animation: overlay-in 0.25s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet,
+  .animate-overlay {
+    animation: none;
+  }
+}
+
+/* One-shot entrance for above-the-fold content. */
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -117,7 +238,7 @@ body {
   }
 }
 .animate-fade-up {
-  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fade-up 0.7s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up {

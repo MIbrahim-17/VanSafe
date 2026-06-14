@@ -73,7 +73,13 @@ export default function ChildCard({
     setError("");
     const { error: err } = await supabase
       .from("children")
-      .update({ name: values.name, school: values.school, pickup_address: values.pickup_address })
+      .update({
+        name: values.name,
+        school: values.school,
+        pickup_address: values.pickup_address,
+        pickup_lat: values.pickup_lat,
+        pickup_lng: values.pickup_lng,
+      })
       .eq("id", child.id);
     setBusy(false);
     if (err) {

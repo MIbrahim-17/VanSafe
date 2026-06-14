@@ -8,7 +8,8 @@ import { CITIES } from "@/lib/constants";
 import ParentAreaSchoolPicker from "@/components/ParentAreaSchoolPicker";
 import DriverAreaSchoolPicker from "@/components/DriverAreaSchoolPicker";
 import VehiclePicker, { type VehicleValue, EMPTY_VEHICLE } from "@/components/VehiclePicker";
-import { User as RoleUser, Bus as RoleBus } from "@/components/icons";
+import LocationPicker from "@/components/LocationPicker";
+import { User as RoleUser, Bus as RoleBus, Check } from "@/components/icons";
 import type { Role } from "@/lib/types";
 
 export default function RegisterPage() {
@@ -30,6 +31,9 @@ export default function RegisterPage() {
   const [parentArea, setParentArea] = useState("");
   const [parentSchool, setParentSchool] = useState("");
   const [childName, setChildName] = useState("");
+  const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupLat, setPickupLat] = useState<number | null>(null);
+  const [pickupLng, setPickupLng] = useState<number | null>(null);
   const [driverAreas, setDriverAreas] = useState<string[]>([]);
   const [driverSchools, setDriverSchools] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -48,7 +52,9 @@ export default function RegisterPage() {
           parent_id: userId,
           name: childName.trim(),
           school: parentSchool,
-          pickup_address: "",
+          pickup_address: pickupAddress,
+          pickup_lat: pickupLat,
+          pickup_lng: pickupLng,
         });
       }
     } else {
@@ -71,6 +77,11 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!form.city) {
       setError("Please select your city.");
+      return;
+    }
+    // If a first child is being added, require a pinned pickup location.
+    if (role === "parent" && childName.trim() && (pickupLat == null || pickupLng == null)) {
+      setError("Pin your child's pickup location on the map (or clear the child's name to add them later).");
       return;
     }
     setBusy(true);
@@ -133,7 +144,7 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto max-w-md py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Create your VanSafe account</h1>
+      <h1 className="text-title1 text-slate-900">Create your VanSafe account</h1>
       <p className="mt-1 text-sm text-slate-500">Choose how you&apos;ll use VanSafe.</p>
 
       <div className="mt-5 grid grid-cols-2 gap-3">
@@ -142,8 +153,8 @@ export default function RegisterPage() {
             key={r}
             type="button"
             onClick={() => setRole(r)}
-            className={`card p-4 text-left transition ${
-              role === r ? "ring-2 ring-brand-600" : "hover:bg-slate-50"
+            className={`card p-4 text-left transition-all duration-200 ease-apple active:scale-[0.98] ${
+              role === r ? "ring-2 ring-brand-500" : "hover:bg-slate-50"
             }`}
           >
             <div
@@ -214,6 +225,38 @@ export default function RegisterPage() {
                 setParentSchool(s);
               }}
             />
+            {childName.trim() && (
+              <div>
+                <label className="label">Pickup location</label>
+                <div className="flex gap-2">
+                  <input
+                    className="input"
+                    value={pickupAddress}
+                    onChange={(e) => setPickupAddress(e.target.value)}
+                    placeholder="House, block, area"
+                  />
+                  <LocationPicker
+                    value={{ lat: pickupLat, lng: pickupLng, address: pickupAddress }}
+                    city={form.city}
+                    title="Pin pickup location"
+                    onChange={(v) => {
+                      setPickupLat(v.lat);
+                      setPickupLng(v.lng);
+                      setPickupAddress(v.address);
+                    }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  {pickupLat != null ? (
+                    <span className="text-emerald-600">
+                      <Check size={12} /> Pickup pinned
+                    </span>
+                  ) : (
+                    "Drop a pin so the driver can route to the exact spot."
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

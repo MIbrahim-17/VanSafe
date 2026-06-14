@@ -57,7 +57,7 @@ export default function MatchPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+        <h1 className="text-title1 flex items-center gap-2 text-slate-900">
           <Sparkles size={24} className="text-brand-600" /> AI Van Matching
         </h1>
         <p className="text-sm text-slate-500">

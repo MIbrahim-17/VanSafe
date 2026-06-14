@@ -35,6 +35,8 @@ export default function AddChild({ city, count }: { city: string; count: number 
       name: values.name,
       school: values.school,
       pickup_address: values.pickup_address,
+      pickup_lat: values.pickup_lat,
+      pickup_lng: values.pickup_lng,
     });
     setBusy(false);
     if (err) {

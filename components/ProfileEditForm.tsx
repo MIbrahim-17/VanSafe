@@ -115,7 +115,7 @@ export default function ProfileEditForm({
   return (
     <form onSubmit={save} className="space-y-4">
       <div className="card space-y-3 p-4">
-        <h2 className="font-semibold text-slate-900">About you</h2>
+        <h2 className="text-title3 text-slate-900">About you</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">Name</label>
@@ -151,7 +151,7 @@ export default function ProfileEditForm({
       </div>
 
       <div className="card space-y-3 p-4">
-        <h2 className="font-semibold text-slate-900">Areas &amp; schools you serve</h2>
+        <h2 className="text-title3 text-slate-900">Areas &amp; schools you serve</h2>
         {form.city ? (
           <DriverAreaSchoolPicker
             city={form.city}
@@ -168,7 +168,7 @@ export default function ProfileEditForm({
       </div>
 
       <div className="card space-y-3 p-4">
-        <h2 className="font-semibold text-slate-900">Vehicle</h2>
+        <h2 className="text-title3 text-slate-900">Vehicle</h2>
         <VehiclePicker value={vehicle} onChange={setVehicle} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -191,7 +191,7 @@ export default function ProfileEditForm({
       </div>
 
       <div className="card space-y-3 p-4">
-        <h2 className="font-semibold text-slate-900">Documents</h2>
+        <h2 className="text-title3 text-slate-900">Documents</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="label">

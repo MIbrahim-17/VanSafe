@@ -80,7 +80,7 @@ export default async function DriverProfilePage({
         <div className="card p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{driverProfile.name}</h1>
+              <h1 className="text-title1 text-slate-900">{driverProfile.name}</h1>
               <p className="mt-1">
                 <span className="badge bg-brand-100 text-brand-800">
                   <MapPin size={13} /> {driverProfile.city ? cityLabel(driverProfile.city) : "City not set"}
@@ -144,14 +144,14 @@ export default async function DriverProfilePage({
         </div>
 
         <div className="card border-brand-100 bg-brand-50 p-5">
-          <h2 className="flex items-center gap-2 font-semibold text-brand-900">
+          <h2 className="text-title3 flex items-center gap-2 text-brand-900">
             <Sparkles size={18} /> AI review summary
           </h2>
           <p className="mt-2 text-sm text-brand-900/80">{summary}</p>
         </div>
 
         <div>
-          <h2 className="mb-3 font-semibold text-slate-900">
+          <h2 className="text-title3 mb-3 text-slate-900">
             Reviews ({reviews.length})
           </h2>
           <ReviewList reviews={reviews} names={names} />

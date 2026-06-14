@@ -104,8 +104,8 @@ export default async function ParentDashboard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Hi, {profile.name}</h1>
-          <p className="flex items-center gap-1.5 text-sm text-slate-500">
+          <h1 className="text-title1 text-slate-900">Hi, {profile.name}</h1>
+          <p className="mt-0.5 flex items-center gap-1.5 text-[15px] text-slate-500">
             Your VanSafe parent dashboard ·
             <span className="inline-flex items-center gap-1 font-medium text-brand-700">
               <MapPin size={14} /> {cityLabel(profile.city)}
@@ -121,7 +121,7 @@ export default async function ParentDashboard() {
         {/* Children column */}
         <div className="space-y-4 lg:col-span-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">
+            <h2 className="text-title3 text-slate-900">
               My children {children.length > 0 && <span className="text-slate-400">({children.length})</span>}
             </h2>
             <AddChild city={profile.city} count={children.length} />
@@ -162,7 +162,7 @@ export default async function ParentDashboard() {
           {demoTargets.length > 0 && <DemoMode targets={demoTargets} />}
 
           <div className="card p-4">
-            <h2 className="mb-3 font-semibold text-slate-900">Recent alerts</h2>
+            <h2 className="text-title3 mb-3 text-slate-900">Recent alerts</h2>
             {alertRows.length === 0 ? (
               <p className="text-sm text-slate-500">
                 No alerts yet. You&apos;ll be notified on departure, arrival and anything unusual.
@@ -190,7 +190,7 @@ export default async function ParentDashboard() {
 
         {/* Bot column */}
         <div>
-          <h2 className="mb-2 font-semibold text-slate-900">Ask the VanSafe bot</h2>
+          <h2 className="text-title3 mb-2 text-slate-900">Ask the VanSafe bot</h2>
           <WhatsAppSimPanel whatsapp={profile.whatsapp} />
         </div>
       </div>

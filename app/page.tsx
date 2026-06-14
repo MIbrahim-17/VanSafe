@@ -62,14 +62,14 @@ export default function Home() {
             Public-service initiative · Lahore &amp; Karachi
           </span>
           <h1
-            className="animate-fade-up mx-auto mt-6 max-w-3xl text-balance text-4xl font-extrabold leading-[1.08] tracking-tight text-slate-900 sm:text-6xl"
+            className="animate-fade-up text-largetitle mx-auto mt-6 max-w-3xl text-balance text-slate-900"
             style={{ animationDelay: "80ms" }}
           >
             Safer school van rides,{" "}
             <span className="text-brand-700">for every parent.</span>
           </h1>
           <p
-            className="animate-fade-up mx-auto mt-5 max-w-2xl text-balance text-lg leading-relaxed text-slate-600 sm:text-xl"
+            className="animate-fade-up mx-auto mt-5 max-w-2xl text-balance text-lg leading-relaxed text-slate-500 sm:text-xl"
             style={{ animationDelay: "160ms" }}
           >
             VanSafe helps parents find trusted van drivers, track their child&apos;s ride live,
@@ -119,10 +119,10 @@ export default function Home() {
       <section>
         <Reveal className="text-center">
           <p className="eyebrow">How it works</p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-balance text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="text-title1 mx-auto mt-3 max-w-2xl text-balance text-slate-900 sm:text-4xl">
             Everything you need to keep children safe
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-balance text-slate-600">
+          <p className="mx-auto mt-3 max-w-xl text-balance text-slate-500">
             Six tools working together — from the first search to every morning ride.
           </p>
         </Reveal>
@@ -146,7 +146,7 @@ export default function Home() {
       <section>
         <Reveal className="text-center">
           <p className="eyebrow">Built for both sides</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          <h2 className="text-title1 mt-3 text-slate-900 sm:text-4xl">
             One platform, two journeys
           </h2>
         </Reveal>
@@ -178,8 +178,8 @@ export default function Home() {
 
       {/* Closing CTA */}
       <Reveal as="section">
-        <div className="rounded-3xl bg-brand-800 px-6 py-14 text-center text-white sm:px-10 sm:py-20">
-          <h2 className="mx-auto max-w-2xl text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        <div className="rounded-4xl bg-brand-800 px-6 py-14 text-center text-white sm:px-10 sm:py-20">
+          <h2 className="text-title1 mx-auto max-w-2xl text-balance text-white sm:text-4xl">
             Start tracking your child&apos;s ride today
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-balance text-brand-100">

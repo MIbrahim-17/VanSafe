@@ -5,9 +5,10 @@
  * Build & save a base route, mark attendance, optimize, view it on a map with
  * distance/time/fuel + savings, and start the route (GPS + parent alerts).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { MapPin, Route, Play, Check, X, Sparkles } from "@/components/icons";
+import { Route, Play, Check, X, Sparkles } from "@/components/icons";
+import LocationPicker from "@/components/LocationPicker";
 import { formatKm, formatDuration, formatPKR } from "@/lib/utils";
 import type {
   AttendanceStatus,
@@ -40,19 +41,6 @@ const ENGINE_LABEL: Record<string, string> = {
   osrm: "Road distances",
   haversine: "Estimated — maps temporarily unavailable",
 };
-
-async function geocodeClient(q: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pk&q=${encodeURIComponent(q)}`
-    );
-    const j = (await r.json()) as { lat: string; lon: string }[];
-    if (j[0]) return { lat: +j[0].lat, lng: +j[0].lon };
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
 
 export default function RoutePlanner({
   base,
@@ -92,6 +80,7 @@ export default function RoutePlanner({
   const [result, setResult] = useState<OptimizeResult | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [started, setStarted] = useState(false);
+  const [gpsNote, setGpsNote] = useState("");
   const [error, setError] = useState("");
   const [emptyMsg, setEmptyMsg] = useState("");
 
@@ -133,24 +122,18 @@ export default function RoutePlanner({
     setSavingBase(true);
     setSavedMsg("");
     setError("");
-    let hLat = homeLat;
-    let hLng = homeLng;
-    if ((hLat == null || hLng == null) && homeAddress.trim()) {
-      const geo = await geocodeClient(`${homeAddress}, ${city}`);
-      if (geo) {
-        hLat = geo.lat;
-        hLng = geo.lng;
-        setHomeLat(hLat);
-        setHomeLng(hLng);
-      }
+    if (homeLat == null || homeLng == null) {
+      setSavingBase(false);
+      setError("Pin your home location on the map first.");
+      return;
     }
     const res = await fetch("/api/route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         home_address: homeAddress,
-        home_lat: hLat,
-        home_lng: hLng,
+        home_lat: homeLat,
+        home_lng: homeLng,
         school_name: schoolName,
         school_lat: school?.lat ?? null,
         school_lng: school?.lng ?? null,
@@ -165,15 +148,6 @@ export default function RoutePlanner({
       return;
     }
     setSavedMsg("Base route saved — it will load automatically each morning.");
-  }
-
-  function detectLocation() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      setHomeLat(pos.coords.latitude);
-      setHomeLng(pos.coords.longitude);
-      if (!homeAddress) setHomeAddress("Current location");
-    });
   }
 
   async function optimize() {
@@ -208,7 +182,38 @@ export default function RoutePlanner({
     setResult(j as OptimizeResult);
   }
 
+  // Live GPS pinging (same path as the tracking page) so "Start Route" really
+  // begins sharing location. Cleared on unmount.
+  const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (pingTimer.current) clearInterval(pingTimer.current);
+  }, []);
+
+  function sendLocationPing() {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        void fetch("/api/locations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        });
+      },
+      () => {
+        if (typeof window !== "undefined" && !window.isSecureContext)
+          setGpsNote("Live GPS needs HTTPS — parents were notified, but open the app over HTTPS to share location.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
   async function startRoute() {
+    // Fire the first GPS read synchronously inside the tap (iOS requirement),
+    // then keep pinging every 30s while the route is running.
+    sendLocationPing();
+    if (pingTimer.current) clearInterval(pingTimer.current);
+    pingTimer.current = setInterval(sendLocationPing, 30000);
+
     await fetch("/api/route/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -221,7 +226,7 @@ export default function RoutePlanner({
     <div className="space-y-6">
       {/* Base route setup */}
       <div className="card space-y-4 p-4">
-        <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+        <h2 className="text-title3 flex items-center gap-2 text-slate-900">
           <Route size={18} className="text-brand-700" /> Base route
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -234,14 +239,23 @@ export default function RoutePlanner({
                 onChange={(e) => setHomeAddress(e.target.value)}
                 placeholder="Your home address"
               />
-              <button type="button" onClick={detectLocation} className="btn-ghost shrink-0" title="Use current location">
-                <MapPin size={16} />
-              </button>
+              <LocationPicker
+                value={{ lat: homeLat, lng: homeLng, address: homeAddress }}
+                city={city}
+                title="Pin home location"
+                onChange={(v) => {
+                  setHomeLat(v.lat);
+                  setHomeLng(v.lng);
+                  setHomeAddress(v.address);
+                }}
+              />
             </div>
-            {homeLat != null && (
+            {homeLat != null ? (
               <p className="mt-1 text-xs text-emerald-600">
-                <Check size={12} /> Location set
+                <Check size={12} /> Location pinned
               </p>
+            ) : (
+              <p className="mt-1 text-xs text-amber-600">Pin your home on the map.</p>
             )}
           </div>
           <div>
@@ -332,10 +346,10 @@ export default function RoutePlanner({
       {/* Optimize */}
       <div className="card space-y-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+          <h2 className="text-title3 flex items-center gap-2 text-slate-900">
             <Sparkles size={18} className="text-brand-700" /> Optimize today&apos;s route
           </h2>
-          <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+          <div className="segmented">
             {(["morning", "afternoon"] as RoutePeriod[]).map((p) => (
               <button
                 key={p}
@@ -343,9 +357,7 @@ export default function RoutePlanner({
                   setPeriod(p);
                   setResult(null);
                 }}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
-                  period === p ? "bg-brand-700 text-white" : "text-slate-600 hover:bg-slate-50"
-                }`}
+                className={`segment capitalize ${period === p ? "segment-on" : ""}`}
               >
                 {p}
               </button>
@@ -421,9 +433,14 @@ export default function RoutePlanner({
             </ol>
 
             {started ? (
-              <p className="rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
-                <Check size={14} /> Route started — GPS tracking on, parents notified.
-              </p>
+              <div className="space-y-2">
+                <p className="rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+                  <Check size={14} /> Route started — GPS tracking on, parents notified.
+                </p>
+                {gpsNote && (
+                  <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">{gpsNote}</p>
+                )}
+              </div>
             ) : (
               <button onClick={startRoute} className="btn-green w-full py-3 text-base">
                 <Play size={18} /> Start Route — راستہ شروع کریں

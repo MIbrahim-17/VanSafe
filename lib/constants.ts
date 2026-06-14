@@ -14,6 +14,24 @@ export const CITIES: { name: string; urdu: string }[] = [
 
 export const CITY_NAMES = CITIES.map((c) => c.name);
 
+/** Approximate city-centre coordinates, used to centre the map picker. */
+export const CITY_CENTERS: Record<string, { lat: number; lng: number }> = {
+  Lahore: { lat: 31.5204, lng: 74.3587 },
+  Karachi: { lat: 24.8607, lng: 67.0011 },
+  Islamabad: { lat: 33.6844, lng: 73.0479 },
+  Rawalpindi: { lat: 33.5651, lng: 73.0169 },
+  Faisalabad: { lat: 31.4504, lng: 73.135 },
+  Multan: { lat: 30.1575, lng: 71.5249 },
+  Peshawar: { lat: 34.0151, lng: 71.5249 },
+  Quetta: { lat: 30.1798, lng: 66.975 },
+  Sialkot: { lat: 32.4927, lng: 74.5319 },
+  Gujranwala: { lat: 32.1877, lng: 74.1945 },
+};
+
+export function cityCenter(city?: string): { lat: number; lng: number } {
+  return (city && CITY_CENTERS[city]) || { lat: 30.3753, lng: 69.3451 }; // Pakistan
+}
+
 /**
  * Current petrol price in PKR per litre, used for fuel-cost estimates.
  * Update periodically as the pump price changes (or override via env at deploy).

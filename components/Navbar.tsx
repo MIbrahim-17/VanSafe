@@ -25,8 +25,8 @@ export default async function Navbar() {
     : "/";
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
+    <header className="material-bar sticky top-0 z-20">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-2.5">
         <Link href={home} className="group flex items-center gap-2.5">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-700 text-white shadow-sm transition-transform duration-300 group-hover:scale-105">
             <Bus size={20} />

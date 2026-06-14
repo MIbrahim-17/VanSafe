@@ -33,7 +33,7 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md py-12">
-      <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
+      <h1 className="text-title1 text-slate-900">Welcome back</h1>
       <p className="mt-1 text-sm text-slate-500">Log in to your VanSafe account.</p>
 
       <form onSubmit={submit} className="mt-6 space-y-3">
