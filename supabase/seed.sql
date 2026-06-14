@@ -14,6 +14,17 @@ create or replace function public.seed_user(
   uid uuid, uemail text, uname text, urole text, uwa text, ucity text default 'Karachi'
 ) returns void as $$
 begin
+  -- Self-healing & idempotent. auth.users has a unique index on email
+  -- (users_email_partial_key), so we can't rely on `on conflict (id)` alone.
+  -- 1) Drop any stale account holding this email under a DIFFERENT id, so the
+  --    canonical seed id is always the one in the database (cascades to the
+  --    profile/driver/reviews/etc. via on-delete-cascade).
+  delete from auth.users where email = uemail and id <> uid;
+  -- 2) Already seeded with the right id? Nothing to do.
+  if exists (select 1 from auth.users where id = uid) then
+    return;
+  end if;
+
   -- NOTE: the token columns must be '' (not NULL). GoTrue scans them into
   -- non-nullable strings at login; NULLs cause "Database error querying schema".
   insert into auth.users (
@@ -31,8 +42,7 @@ begin
     jsonb_build_object('role', urole, 'name', uname, 'whatsapp', uwa, 'city', ucity),
     now(), now(),
     '', '', '', '', '', '', '', ''
-  )
-  on conflict (id) do nothing;
+  );
 end;
 $$ language plpgsql;
 
@@ -42,8 +52,26 @@ select public.seed_user('22222222-2222-2222-2222-222222222222', 'bilal.driver@va
 select public.seed_user('33333333-3333-3333-3333-333333333333', 'saleem.driver@vansafe.test', 'Saleem Raza',  'driver', '+923007778899');
 select public.seed_user('44444444-4444-4444-4444-444444444444', 'kashif.driver@vansafe.test','Kashif Iqbal', 'driver', '+923009990011');
 
+-- More demo drivers (Karachi) so browse/match feel populated
+select public.seed_user('55555555-5555-5555-5555-555555555555', 'asif.driver@vansafe.test',    'Asif Mehmood',   'driver', '+923002223344');
+select public.seed_user('66666666-6666-6666-6666-666666666666', 'naveed.driver@vansafe.test',  'Naveed Akhtar',  'driver', '+923003334455');
+select public.seed_user('77777777-7777-7777-7777-777777777777', 'faisal.driver@vansafe.test',  'Faisal Mahmood', 'driver', '+923004445566');
+select public.seed_user('88888888-8888-8888-8888-888888888888', 'tariq.driver@vansafe.test',   'Tariq Jamil',    'driver', '+923005556677');
+select public.seed_user('99999999-9999-9999-9999-999999999999', 'rashid.driver@vansafe.test',  'Rashid Ali',     'driver', '+923006667788');
+select public.seed_user('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'zahid.driver@vansafe.test',   'Zahid Hussain',  'driver', '+923007778800');
+select public.seed_user('cccccccc-cccc-cccc-cccc-cccccccccccc', 'samina.driver@vansafe.test',  'Samina Bibi',    'driver', '+923008889911');
+select public.seed_user('dddddddd-dddd-dddd-dddd-dddddddddddd', 'shahid.driver@vansafe.test',  'Shahid Mehmood', 'driver', '+923009990022');
+
+-- A couple of Lahore drivers for cross-city coverage
+select public.seed_user('e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1', 'usman.driver@vansafe.test',   'Usman Ghani',    'driver', '+923011112233', 'Lahore');
+select public.seed_user('e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2', 'kamran.driver@vansafe.test',  'Kamran Shah',    'driver', '+923012223344', 'Lahore');
+
 -- Demo parent
 select public.seed_user('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'sara.parent@vansafe.test', 'Sara Malik', 'parent', '+923211234567');
+
+-- Extra demo parents (used as review authors so ratings look organic)
+select public.seed_user('f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 'fatima.parent@vansafe.test', 'Fatima Sheikh', 'parent', '+923211002030');
+select public.seed_user('f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 'ali.parent@vansafe.test',    'Ali Raza',      'parent', '+923211003040');
 
 -- Flesh out driver profiles
 update public.drivers set
@@ -86,14 +114,138 @@ update public.drivers set
   verified = false
 where id = '44444444-4444-4444-4444-444444444444';
 
--- Reviews (clear the demo parent's first so re-running doesn't duplicate them
+update public.drivers set
+  area = 'Gulshan-e-Iqbal', areas = '{"Gulshan-e-Iqbal"}',
+  schools = '{"The City School Gulshan","Beaconhouse Gulshan"}',
+  vehicle_type = 'Hi-Roof', vehicle_model = 'Toyota Hiace (Grand Cabin)',
+  plate = 'KHI-501', capacity = 15, official_capacity = 15, occupancy = 9,
+  make_model = 'Toyota Hiace (Grand Cabin)', color = 'Silver', year = 2021,
+  bio = 'AC Grand Cabin with seat belts on every seat. 10 years on Gulshan routes.',
+  cnic_url = 'seed://cnic', vehicle_doc_url = 'seed://vehicle', verified = true
+where id = '55555555-5555-5555-5555-555555555555';
+
+update public.drivers set
+  area = 'North Nazimabad', areas = '{"North Nazimabad","Nazimabad"}',
+  schools = '{"Beaconhouse North Nazimabad","The City School North Nazimabad"}',
+  vehicle_type = 'Standard Van', vehicle_model = 'Suzuki APV',
+  plate = 'KHI-602', capacity = 8, official_capacity = 8, occupancy = 5,
+  make_model = 'Suzuki APV', color = 'White', year = 2019,
+  bio = 'Friendly, patient with young kids. Non-smoker, GPS tracked.',
+  cnic_url = 'seed://cnic', vehicle_doc_url = 'seed://vehicle', verified = true
+where id = '66666666-6666-6666-6666-666666666666';
+
+update public.drivers set
+  area = 'Clifton', areas = '{"Clifton"}',
+  schools = '{"Beaconhouse Clifton","Bay View High School"}',
+  vehicle_type = 'Hi-Roof', vehicle_model = 'Toyota Hiace (High Roof)',
+  plate = 'KHI-703', capacity = 17, official_capacity = 17, occupancy = 12,
+  make_model = 'Toyota Hiace (High Roof)', color = 'White', year = 2020,
+  bio = 'Clifton & Saddar routes. Female attendant available on request.',
+  cnic_url = 'seed://cnic', vehicle_doc_url = 'seed://vehicle', verified = true
+where id = '77777777-7777-7777-7777-777777777777';
+
+update public.drivers set
+  area = 'Defence', areas = '{"Defence","Clifton"}',
+  schools = '{"The City School Defence","Foundation Public School"}',
+  vehicle_type = 'Standard Van', vehicle_model = 'Changan Karvaan Plus',
+  plate = 'KHI-804', capacity = 8, official_capacity = 8, occupancy = 3,
+  make_model = 'Changan Karvaan Plus', color = 'Grey', year = 2022,
+  bio = 'New van, plenty of seats free. DHA & Defence phases.',
+  verified = false
+where id = '88888888-8888-8888-8888-888888888888';
+
+update public.drivers set
+  area = 'Gulistan-e-Johar', areas = '{"Gulistan-e-Johar","Gulshan-e-Iqbal"}',
+  schools = '{"The City School Gulshan","Dawood Public School"}',
+  vehicle_type = 'Mini Van', vehicle_model = 'Suzuki Every',
+  plate = 'KHI-905', capacity = 8, official_capacity = 8, occupancy = 6,
+  make_model = 'Suzuki Every', color = 'Blue', year = 2021,
+  bio = 'Johar to Gulshan schools. Affordable monthly rates.',
+  cnic_url = 'seed://cnic', verified = true
+where id = '99999999-9999-9999-9999-999999999999';
+
+update public.drivers set
+  area = 'Gulshan-e-Iqbal', areas = '{"Gulshan-e-Iqbal"}',
+  schools = '{"Beaconhouse Gulshan","The Educators Gulshan"}',
+  vehicle_type = 'Hi-Roof', vehicle_model = 'Toyota Hiace (Standard)',
+  plate = 'KHI-106', capacity = 14, official_capacity = 14, occupancy = 10,
+  make_model = 'Toyota Hiace (Standard)', color = 'White', year = 2017,
+  bio = '12 years accident-free. Known to many Gulshan families.',
+  cnic_url = 'seed://cnic', vehicle_doc_url = 'seed://vehicle', verified = true
+where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+
+update public.drivers set
+  area = 'North Nazimabad', areas = '{"North Nazimabad"}',
+  schools = '{"Generation''s North Nazimabad","Beaconhouse North Nazimabad"}',
+  vehicle_type = 'Standard Van', vehicle_model = 'Changan Karvaan Hi-Roof',
+  plate = 'KHI-207', capacity = 11, official_capacity = 11, occupancy = 7,
+  make_model = 'Changan Karvaan Hi-Roof', color = 'Silver', year = 2020,
+  bio = 'Lady driver — preferred by many parents of young girls. Very punctual.',
+  cnic_url = 'seed://cnic', vehicle_doc_url = 'seed://vehicle', verified = true
+where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+
+update public.drivers set
+  area = 'Malir', areas = '{"Malir","Shah Faisal"}',
+  schools = '{"The City School Malir","Habib Public School"}',
+  vehicle_type = 'Mini Van', vehicle_model = 'Daihatsu Hijet',
+  plate = 'KHI-308', capacity = 7, official_capacity = 7, occupancy = 4,
+  make_model = 'Daihatsu Hijet', color = 'White', year = 2018,
+  bio = 'Malir & Shah Faisal routes. Small van, personal attention.',
+  verified = false
+where id = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+
+-- Lahore drivers
+update public.drivers set
+  area = 'DHA', areas = '{"DHA","Cantt"}',
+  schools = '{"Beaconhouse Defence","Lahore Grammar School Defence"}',
+  vehicle_type = 'Hi-Roof', vehicle_model = 'Toyota Hiace (High Roof)',
+  plate = 'LHR-411', capacity = 17, official_capacity = 17, occupancy = 8,
+  make_model = 'Toyota Hiace (High Roof)', color = 'White', year = 2021,
+  bio = 'DHA & Cantt school runs. GPS tracked, AC, seat belts.',
+  cnic_url = 'seed://cnic', vehicle_doc_url = 'seed://vehicle', verified = true
+where id = 'e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1';
+
+update public.drivers set
+  area = 'Gulberg', areas = '{"Gulberg","Garden Town"}',
+  schools = '{"Lahore Grammar School Gulberg","The City School Gulberg"}',
+  vehicle_type = 'Standard Van', vehicle_model = 'Suzuki APV',
+  plate = 'LHR-512', capacity = 8, official_capacity = 8, occupancy = 4,
+  make_model = 'Suzuki APV', color = 'Grey', year = 2020,
+  bio = 'Gulberg & Garden Town. Reliable and friendly with kids.',
+  cnic_url = 'seed://cnic', verified = true
+where id = 'e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2';
+
+-- Reviews (clear demo reviewers first so re-running doesn't duplicate them
 -- and inflate each driver's review count via the rating trigger).
-delete from public.reviews where parent_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+delete from public.reviews where parent_id in (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1',
+  'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2'
+);
 insert into public.reviews (driver_id, parent_id, rating, comment) values
+  -- Existing drivers
   ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'Always on time and very gentle with the kids.'),
-  ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 4, 'Reliable, sometimes 5 mins late in rain but messages ahead.'),
+  ('11111111-1111-1111-1111-111111111111', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 4, 'Reliable, sometimes 5 mins late in rain but messages ahead.'),
+  ('11111111-1111-1111-1111-111111111111', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 5, 'Trustworthy and very careful on the main road.'),
   ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'The attendant makes me feel safe about my daughter.'),
-  ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 3, 'Good driver but the van is quite full and a bit cramped.');
+  ('22222222-2222-2222-2222-222222222222', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 4, 'Clean van and polite driver.'),
+  ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 3, 'Good driver but the van is quite full and a bit cramped.'),
+  -- New drivers
+  ('55555555-5555-5555-5555-555555555555', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 5, 'Excellent — AC always on and seat belts for everyone.'),
+  ('55555555-5555-5555-5555-555555555555', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 5, 'My kids love riding with him. Very safe.'),
+  ('66666666-6666-6666-6666-666666666666', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 4, 'Patient and friendly, never rushes.'),
+  ('66666666-6666-6666-6666-666666666666', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 5, 'Best decision for our morning school run.'),
+  ('77777777-7777-7777-7777-777777777777', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 4, 'Spacious van, attendant is very caring.'),
+  ('77777777-7777-7777-7777-777777777777', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'Always messages when arriving. Great communication.'),
+  ('88888888-8888-8888-8888-888888888888', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 4, 'Brand new van, lots of room.'),
+  ('99999999-9999-9999-9999-999999999999', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 4, 'Affordable and reliable for Johar families.'),
+  ('99999999-9999-9999-9999-999999999999', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'Picks up exactly on time every day.'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 5, 'Twelve years of trust in our neighbourhood.'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 4, 'Calm, experienced driver. Recommend.'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'A lady driver — exactly what we wanted for our daughter.'),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 5, 'Punctual and very responsible.'),
+  ('e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1', 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1', 5, 'Best van service in DHA Lahore.'),
+  ('e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2', 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2', 4, 'Dependable for Gulberg schools.');
 
 -- Demo parent's neighbourhood + child's school (used by browse/match filters)
 update public.profiles

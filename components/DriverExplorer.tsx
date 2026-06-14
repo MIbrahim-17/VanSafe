@@ -84,19 +84,17 @@ export default function DriverExplorer({ mode }: { mode: "browse" | "search" }) 
           </div>
           <div className="min-w-[180px] flex-1">
             <label className="label">School</label>
-            <input
+            <select
               className="input"
-              list="browse-school-options"
               value={school}
               disabled={!area}
-              placeholder={area ? `Search schools in ${area}…` : "Select an area first"}
               onChange={(e) => setSchool(e.target.value)}
-            />
-            <datalist id="browse-school-options">
+            >
+              <option value="">{area ? "All schools" : "Select an area first"}</option>
               {schoolOptions.map((s) => (
-                <option key={s} value={s} />
+                <option key={s} value={s}>{s}</option>
               ))}
-            </datalist>
+            </select>
           </div>
 
           {mode === "browse" && (
