@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>VanSafe — Presentation</title>
+<style>
+  :root{
+    --green:#127240; --green-2:#138f4e; --green-3:#1fae62;
+    --ink:#1d1d1f; --muted:#6e6e73; --line:rgba(0,0,0,.08);
+    --bg-soft:#eefaf2; --bg-card:#f6f8f7;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  html,body{ font-family:-apple-system,"Segoe UI",system-ui,Helvetica,Arial,sans-serif; color:var(--ink); }
+  @page{ size:1280px 720px; margin:0; }
+
+  .slide{
+    position:relative; width:1280px; height:720px; overflow:hidden;
+    background:#fff; padding:64px 80px 70px; page-break-after:always; display:flex; flex-direction:column;
+  }
+  .slide:last-child{ page-break-after:auto; }
+
+  /* chrome */
+  .kicker{ display:inline-flex; align-items:center; gap:8px; font-size:15px; font-weight:700;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--green); }
+  h1{ font-size:78px; line-height:1.02; letter-spacing:-.025em; font-weight:800; }
+  h2{ font-size:46px; line-height:1.05; letter-spacing:-.02em; font-weight:800; }
+  h3{ font-size:23px; font-weight:700; letter-spacing:-.01em; }
+  p.lead{ font-size:24px; line-height:1.45; color:var(--muted); font-weight:450; }
+  .foot{ position:absolute; left:80px; right:80px; bottom:26px; display:flex; justify-content:space-between;
+    align-items:center; font-size:14px; color:var(--muted); border-top:1px solid var(--line); padding-top:12px; }
+  .foot .brand{ display:flex; align-items:center; gap:8px; font-weight:700; color:var(--ink); }
+  .num{ font-variant-numeric:tabular-nums; }
+  .mark{ width:26px;height:26px;border-radius:7px;background:var(--green);display:grid;place-items:center; }
+  .mark svg{ width:16px;height:16px;stroke:#fff; }
+  .accent{ position:absolute; left:0; top:0; bottom:0; width:10px; background:linear-gradient(var(--green),var(--green-3)); }
+
+  /* layout helpers */
+  .grow{ flex:1; }
+  .row{ display:flex; gap:22px; }
+  .col{ flex:1; }
+  ul.points{ list-style:none; margin-top:18px; }
+  ul.points li{ position:relative; padding-left:34px; margin-bottom:16px; font-size:23px; line-height:1.4; }
+  ul.points li::before{ content:""; position:absolute; left:0; top:9px; width:16px; height:16px; border-radius:50%;
+    background:var(--bg-soft); border:3px solid var(--green); }
+  ul.points li b{ font-weight:700; }
+  .tag{ display:inline-block; font-size:14px; font-weight:600; color:var(--green); background:var(--bg-soft);
+    border:1px solid #cfeede; border-radius:999px; padding:6px 12px; margin:6px 6px 0 0; }
+
+  .card{ background:var(--bg-card); border:1px solid var(--line); border-radius:18px; padding:24px; }
+  .card h3{ margin-bottom:6px; }
+  .card p{ font-size:18px; color:var(--muted); line-height:1.4; }
+
+  /* stat cards */
+  .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-top:30px; }
+  .stat{ background:var(--bg-card); border:1px solid var(--line); border-radius:18px; padding:24px; }
+  .stat .big{ font-size:46px; font-weight:800; color:var(--green); letter-spacing:-.02em; line-height:1; }
+  .stat .lbl{ margin-top:10px; font-size:17px; color:var(--ink); font-weight:600; line-height:1.3; }
+  .src{ margin-top:auto; font-size:13px; color:#9a9aa0; }
+
+  /* feature grid */
+  .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:26px; }
+  .feat{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; }
+  .feat .ic{ width:40px;height:40px;border-radius:11px;background:var(--bg-soft);display:grid;place-items:center;margin-bottom:12px; }
+  .feat .ic svg{ width:22px;height:22px;stroke:var(--green); fill:none; }
+  .feat h3{ font-size:19px; }
+  .feat p{ font-size:15px; color:var(--muted); margin-top:4px; line-height:1.35; }
+
+  /* cover */
+  .cover{ background:linear-gradient(135deg,#0f4a2d 0%, #127240 55%, #138f4e 100%); color:#fff; }
+  .cover *{ color:#fff; }
+  .cover .accent{ display:none; }
+  .cover .logo{ display:flex; align-items:center; gap:16px; }
+  .cover .logo .lm{ width:64px;height:64px;border-radius:18px;background:rgba(255,255,255,.16);display:grid;place-items:center; }
+  .cover .logo .lm svg{ width:36px;height:36px;stroke:#fff; }
+  .cover h1{ margin-top:40px; font-size:96px; }
+  .cover .sub{ font-size:28px; opacity:.92; margin-top:20px; max-width:880px; line-height:1.4; }
+  .cover .meta{ position:absolute; left:80px; bottom:60px; font-size:18px; opacity:.9; }
+  .cover .pill{ display:inline-block; border:1px solid rgba(255,255,255,.4); border-radius:999px; padding:8px 16px; font-size:16px; font-weight:600; }
+
+  /* closing */
+  .close{ background:linear-gradient(135deg,#0f4a2d,#127240); }
+  .close *{ color:#fff; }
+  .close .accent{ display:none; }
+
+  .demo-badge{ display:inline-flex; align-items:center; gap:10px; background:var(--bg-soft); color:var(--green);
+    border:1px solid #cfeede; border-radius:999px; padding:10px 18px; font-size:16px; font-weight:700; }
+  .stepline{ display:flex; align-items:center; gap:14px; margin-top:14px; font-size:21px; }
+  .stepline .n{ width:34px;height:34px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-weight:700;font-size:17px;flex:none; }
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:22px; margin-top:26px; }
+  .big-quote{ font-size:30px; line-height:1.4; font-weight:600; letter-spacing:-.01em; }
+  .hl{ color:var(--green); font-weight:800; }
+</style>
+</head>
+<body>
+
+<!-- 1 — COVER -->
+<section class="slide cover">
+  <div class="logo">
+    <div class="lm">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>
+    </div>
+    <div style="font-size:30px;font-weight:800;letter-spacing:-.01em">VanSafe</div>
+  </div>
+  <h1>Safer school-van<br/>rides.</h1>
+  <p class="sub">A trust, tracking &amp; safety platform for Pakistan's school vans — and the city-scale mobility data it unlocks.</p>
+  <div style="margin-top:34px"><span class="pill">Civic Innovation Hackathon · Lahore &amp; Karachi</span></div>
+  <div class="meta">Mohammad Ibrahim Nasir &nbsp;·&nbsp; June 2026</div>
+</section>
+
+<!-- 2 — PROBLEM -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker">The problem</span>
+  <h2 style="margin-top:14px">It started at my own front door.</h2>
+  <p class="lead" style="margin-top:14px;max-width:980px">Every school morning my parents faced the same anxiety — and so does every parent who sends a child off in a stranger's van.</p>
+  <ul class="points" style="margin-top:22px">
+    <li><b>Drivers go unresponsive</b> — phones ring out, even mid-route, leaving parents with no idea where their child is.</li>
+    <li><b>Heavy traffic</b> turns a 20-minute run into an hour; no live location to plan around it.</li>
+    <li><b>Extreme weather</b> — 45&deg;C+ heat and monsoon flooding make delays dangerous, not just inconvenient.</li>
+    <li><b>No way to verify trust</b> — choosing a driver is word-of-mouth and hope, with no records, no reviews, no accountability.</li>
+  </ul>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">02</span></div>
+</section>
+
+<!-- 3 — DATA -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker">Why it matters</span>
+  <h2 style="margin-top:14px">A safety problem at national scale.</h2>
+  <div class="stats">
+    <div class="stat"><div class="big">~27,500</div><div class="lbl">road-traffic deaths a year in Pakistan</div></div>
+    <div class="stat"><div class="big">Millions</div><div class="lbl">of children commute daily in informal vans &amp; wagons</div></div>
+    <div class="stat"><div class="big">45&deg;C+</div><div class="lbl">summer cabin heat; monsoon flooding shuts roads</div></div>
+    <div class="stat"><div class="big">Peak</div><div class="lbl">city congestion lands on school drop-off &amp; pickup hours</div></div>
+  </div>
+  <p class="lead" style="margin-top:30px;max-width:1000px;font-size:22px">Informal school transport is everywhere, essential — and almost entirely <b>unmonitored and unverified.</b></p>
+  <p class="src">Indicative figures. Sources: WHO Global Status Report on Road Safety; national press &amp; meteorological reports.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">03</span></div>
+</section>
+
+<!-- 4 — SOLUTION -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker">The solution</span>
+  <h2 style="margin-top:14px">VanSafe turns a blind, informal ride into a tracked, trusted one.</h2>
+  <div class="grid3" style="margin-top:34px">
+    <div class="feat">
+      <div class="ic"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M11.5 3l2.3 4.7 5.2.8-3.7 3.6.9 5.1-4.7-2.4-4.6 2.4.9-5.1L4 8.5l5.2-.8z"/></svg></div>
+      <h3>Find a trusted van</h3>
+      <p>Browse, filter and AI-match verified drivers by school, area, seats &amp; rating.</p>
+    </div>
+    <div class="feat">
+      <div class="ic"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <h3>Track it live</h3>
+      <p>Real-time GPS on a map, departure &amp; arrival alerts, anomaly detection.</p>
+    </div>
+    <div class="feat">
+      <div class="ic"><svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></div>
+      <h3>Stay informed</h3>
+      <p>Ask a WhatsApp bot "where is the van?" in English or Urdu — anytime.</p>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:32px;max-width:1000px;font-size:22px">Built as a full working product — not a mockup.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">04</span></div>
+</section>
+
+<!-- 5 — TWO ROLES -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker">Two sides, one platform</span>
+  <h2 style="margin-top:14px">Built for parents and drivers.</h2>
+  <div class="two">
+    <div class="card">
+      <h3 style="color:var(--green)">For parents</h3>
+      <ul class="points" style="margin-top:12px">
+        <li style="font-size:21px">Find &amp; compare trusted vans</li>
+        <li style="font-size:21px">Track the ride live, share location instantly</li>
+        <li style="font-size:21px">Mark a child absent; get safety alerts</li>
+        <li style="font-size:21px">Chat the bot in English or Urdu</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--green)">For drivers</h3>
+      <ul class="points" style="margin-top:12px">
+        <li style="font-size:21px">A verified profile parents can trust</li>
+        <li style="font-size:21px">One-tap location sharing each morning</li>
+        <li style="font-size:21px">Route optimization &amp; fuel-savings</li>
+        <li style="font-size:21px">Reviews that build a real reputation</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">05</span></div>
+</section>
+
+<!-- 6 — WHAT WE BUILT -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker">What we built</span>
+  <h2 style="margin-top:14px">A complete, working platform.</h2>
+  <div class="grid3" style="margin-top:22px">
+    <div class="feat"><h3>AI van matching</h3><p>Gemini ranks the safest, closest, best-rated vans.</p></div>
+    <div class="feat"><h3>Live GPS tracking</h3><p>30-sec pings on a map with route history.</p></div>
+    <div class="feat"><h3>WhatsApp bot</h3><p>Twilio + in-app simulator, EN/Urdu intent.</p></div>
+    <div class="feat"><h3>Proactive alerts</h3><p>Departed / arrived / stationary anomaly detection.</p></div>
+    <div class="feat"><h3>Verification &amp; reviews</h3><p>CNIC &amp; vehicle docs, AI-summarised reviews.</p></div>
+    <div class="feat"><h3>Vehicle-safety catalog</h3><p>Real PK vans; official-capacity over-load warnings.</p></div>
+    <div class="feat"><h3>Route optimization</h3><p>Nearest-neighbour + Google Directions, daily attendance.</p></div>
+    <div class="feat"><h3>Fuel-savings dashboard</h3><p>Rupees saved this month, 30-day trend.</p></div>
+    <div class="feat"><h3>Pin-drop locations</h3><p>Map picker for home &amp; pickup, like delivery apps.</p></div>
+  </div>
+  <div style="margin-top:18px">
+    <span class="tag">Next.js + React</span><span class="tag">Supabase (Postgres · Auth · Realtime)</span><span class="tag">Google Gemini</span><span class="tag">Twilio WhatsApp</span><span class="tag">Google Directions</span><span class="tag">Leaflet · OpenStreetMap</span>
+  </div>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">06</span></div>
+</section>
+
+<!-- 7 — DEMO: PARENT -->
+<section class="slide">
+  <div class="accent"></div>
+  <div class="demo-badge">▶ LIVE DEMO · Parent</div>
+  <h2 style="margin-top:22px">Finding the right van.</h2>
+  <div class="stepline"><span class="n">1</span><div><b>Browse &amp; filter</b> drivers by area, school, seats and rating.</div></div>
+  <div class="stepline"><span class="n">2</span><div><b>AI matchmaking</b> — enter the school &amp; area, get a ranked shortlist with reasons.</div></div>
+  <div class="stepline"><span class="n">3</span><div><b>Add a child</b> and <b>pin the pickup point</b> on the map.</div></div>
+  <p class="lead" style="margin-top:26px;font-size:21px">No phone-tree, no guesswork — a trusted match in under a minute.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">07</span></div>
+</section>
+
+<!-- 8 — DEMO: LIVE TRACKING -->
+<section class="slide">
+  <div class="accent"></div>
+  <div class="demo-badge">▶ LIVE DEMO · Real-time tracking</div>
+  <h2 style="margin-top:22px">Driver on the phone, parent on the screen.</h2>
+  <div class="stepline"><span class="n">1</span><div>Driver taps <b>Start Route</b> on their phone — GPS sharing begins.</div></div>
+  <div class="stepline"><span class="n">2</span><div>Parent's map <b>updates in real time</b> as the van moves.</div></div>
+  <div class="stepline"><span class="n">3</span><div>A <b>"van departed" WhatsApp alert</b> reaches the parent automatically.</div></div>
+  <p class="lead" style="margin-top:26px;font-size:21px">The exact anxiety from slide 2 — answered, live.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">08</span></div>
+</section>
+
+<!-- 9 — DEMO: WHATSAPP -->
+<section class="slide">
+  <div class="accent"></div>
+  <div class="demo-badge">▶ LIVE DEMO · WhatsApp bot</div>
+  <h2 style="margin-top:22px">"Where is the van?" — وین کہاں ہے؟</h2>
+  <div class="two" style="margin-top:24px">
+    <div class="card">
+      <h3>In-app simulator</h3>
+      <p style="margin-top:8px">Same bot logic, no setup — answers with a live location &amp; map link.</p>
+    </div>
+    <div class="card">
+      <h3>Real WhatsApp (Twilio)</h3>
+      <p style="margin-top:8px">Text the number — the running demo van's live position comes back to your phone.</p>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:26px;font-size:21px">Meets parents where they already are — bilingual, instant, zero app-switching.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">09</span></div>
+</section>
+
+<!-- 10 — WHY DRIVERS JOIN -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker">The flywheel</span>
+  <h2 style="margin-top:14px">Why drivers opt in.</h2>
+  <ul class="points" style="margin-top:20px">
+    <li><b>Credibility, not word-of-mouth</b> — a verified profile &amp; real reviews win parents a stranger never could.</li>
+    <li><b>More bookings</b> — visibility in search &amp; AI-match fills empty seats.</li>
+    <li><b>Money saved</b> — route optimization cuts distance &amp; fuel; a dashboard shows rupees saved each month.</li>
+  </ul>
+  <p class="lead" style="margin-top:26px;max-width:1020px;font-size:22px">Parents bring trust, drivers bring supply — and every trip quietly produces data.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">10</span></div>
+</section>
+
+<!-- 11 — CIVIC DATA 1 -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker" style="color:var(--green)">The real prize · Civic data</span>
+  <h2 style="margin-top:14px">Every ride is an anonymised data point.</h2>
+  <div class="two" style="margin-top:22px">
+    <div class="card">
+      <h3 style="color:var(--green)">Ease school-hour congestion</h3>
+      <p style="margin-top:8px;font-size:19px">The most-used school-run <b>routes &amp; corridors</b>, mapped. Shared with traffic authorities to re-time signals and relieve the streets that choke at 7am &amp; 1pm.</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--green)">Faster emergency response</h3>
+      <p style="margin-top:8px;font-size:19px">Route density &amp; timing show where children move, when. Emergency services can <b>plan infrastructure &amp; cut response times</b> on accident-prone corridors.</p>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:24px;max-width:1040px;font-size:21px">A consumer app on the surface; a <b class="hl">public mobility dataset</b> underneath.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">11</span></div>
+</section>
+
+<!-- 12 — CIVIC DATA 2 -->
+<section class="slide">
+  <div class="accent"></div>
+  <span class="kicker" style="color:var(--green)">The real prize · Civic data</span>
+  <h2 style="margin-top:14px">From rides to regulation &amp; planning.</h2>
+  <div class="grid3" style="margin-top:22px">
+    <div class="feat">
+      <h3>Fleet composition</h3>
+      <p style="font-size:15.5px">Which vans &amp; wagons dominate, and <b>where</b> — input for transport &amp; emissions planning.</p>
+    </div>
+    <div class="feat">
+      <h3>Safety hotspots</h3>
+      <p style="font-size:15.5px">Where <b>unverified</b> &amp; <b>over-capacity</b> vans operate — targeted child-safety regulation, not blanket crackdowns.</p>
+    </div>
+    <div class="feat">
+      <h3>Fuel &amp; emissions</h3>
+      <p style="font-size:15.5px">Fuel consumed vs distance travelled — an economy &amp; emissions signal optimization actively reduces.</p>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:26px;max-width:1060px;font-size:21px">Verification coverage, demand by neighbourhood, peak-hour pressure — all measurable for the first time.</p>
+  <div class="foot"><span class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>VanSafe</span><span class="num">12</span></div>
+</section>
+
+<!-- 13 — CLOSE -->
+<section class="slide close">
+  <div style="margin-top:30px"><span class="kicker" style="color:#bdebcf">Vision</span></div>
+  <h2 style="margin-top:16px;font-size:54px;max-width:1040px">From one family's worry to a city's safety infrastructure.</h2>
+  <p class="big-quote" style="margin-top:28px;max-width:1000px;opacity:.95">VanSafe makes the school run <b>safer for one child today</b> — and <b>smarter for every child</b> as the data grows.</p>
+  <div style="margin-top:40px;font-size:22px;font-weight:700">Thank you.</div>
+  <div style="position:absolute;left:80px;bottom:56px;font-size:17px;opacity:.85">VanSafe · Mohammad Ibrahim Nasir · Civic Innovation Hackathon 2026</div>
+</section>
+
+</body>
+</html>
