@@ -37,3 +37,6 @@ next-env.d.ts
 
 # local HTTPS dev certs
 certificates/
+
+# large local recordings (exceed GitHub's file size limit)
+*.mp4
