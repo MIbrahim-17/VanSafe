@@ -9,6 +9,8 @@ import type { BaseRoute, Child, Driver, LocationPing, Profile, Review } from "@/
 type Admin = ReturnType<typeof createAdminClient>;
 
 const SIGNUP_URL = "vansafe.app/register";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://van-safe.vercel.app";
+const TRACCAR_APP_URL = "https://play.google.com/store/apps/details?id=org.traccar.client";
 
 /**
  * Validate Twilio's X-Twilio-Signature on the inbound webhook so only genuine
@@ -144,6 +146,10 @@ export async function handleIncoming(from: string, text: string): Promise<string
   const { intent, lang } = await interpretWhatsApp(text);
 
   if (!parent) {
+    // A driver messaging the bot gets their hands-free location-sharing setup.
+    const driverReply = await driverSetupReply(admin, fromDigits, lang);
+    if (driverReply) return driverReply;
+
     return lang === "ur"
       ? `سلام! یہ نمبر VanSafe پر رجسٹرڈ نہیں ہے۔ سائن اپ کریں: ${SIGNUP_URL}`
       : `Hi! This number isn't registered on VanSafe yet. Sign up here to track your child's van: ${SIGNUP_URL}`;
@@ -215,6 +221,56 @@ export async function handleIncoming(from: string, text: string): Promise<string
 // ---------------------------------------------------------------------------
 // Bot helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * If the sender is a registered driver, return their Traccar background-tracking
+ * setup (app link + server URL + their secret token). Returns null otherwise.
+ */
+async function driverSetupReply(
+  admin: Admin,
+  fromDigits: string,
+  lang: "en" | "ur"
+): Promise<string | null> {
+  const { data: drivers } = await admin.from("profiles").select("*").eq("role", "driver");
+  const driver = (drivers as Profile[] | null)?.find((p) => {
+    const d = digits(p.whatsapp);
+    return d && (d === fromDigits || d.endsWith(fromDigits.slice(-9)) || fromDigits.endsWith(d.slice(-9)));
+  });
+  if (!driver) return null;
+
+  const { data: drvRow } = await admin
+    .from("drivers")
+    .select("track_token")
+    .eq("id", driver.id)
+    .maybeSingle();
+  const token = (drvRow as Pick<Driver, "track_token"> | null)?.track_token;
+  const serverUrl = `${SITE_URL}/api/track`;
+
+  if (!token) {
+    return lang === "ur"
+      ? `سلام ${driver.name}! آپ کا ٹریکنگ ٹوکن ابھی تیار نہیں۔ براہ کرم ویب ایپ میں 'Route' صفحہ کھولیں۔`
+      : `Hi ${driver.name}! Your tracking token isn't set up yet. Open the Route page in the web app to generate it.`;
+  }
+
+  if (lang === "ur") {
+    return (
+      `🚐 سلام ${driver.name}! بیک گراؤنڈ میں لوکیشن شیئر کرنے کے لیے Traccar Client ایپ استعمال کریں:\n\n` +
+      `1. ایپ انسٹال کریں: ${TRACCAR_APP_URL}\n` +
+      `2. Server URL: ${serverUrl}\n` +
+      `3. Device identifier: ${token}\n` +
+      `4. Frequency ~30s رکھیں اور Service ON کر دیں۔\n\n` +
+      `اس کے بعد آپ کی وین کی لوکیشن خود بخود اپڈیٹ ہوتی رہے گی۔`
+    );
+  }
+  return (
+    `🚐 Hi ${driver.name}! Share your van's live location hands-free with the Traccar Client app:\n\n` +
+    `1. Install: ${TRACCAR_APP_URL}\n` +
+    `2. Server URL: ${serverUrl}\n` +
+    `3. Device identifier: ${token}\n` +
+    `4. Set frequency ~30s and turn the Service ON.\n\n` +
+    `Your van location then updates automatically in the background.`
+  );
+}
 
 /** A child plus everything the bot may need to answer about their van. */
 interface Snapshot {
