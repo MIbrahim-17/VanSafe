@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import StarRating from "@/components/StarRating";
 import OccupancyBar from "@/components/OccupancyBar";
 import FuelChart, { type FuelDay } from "@/components/FuelChart";
+import WhatsAppBotButton from "@/components/WhatsAppBotButton";
 import { MapPin, Play, Message, Route, Sparkles } from "@/components/icons";
 import { whatsappLink, formatPKR } from "@/lib/utils";
 import { cityLabel } from "@/lib/constants";
@@ -172,6 +173,8 @@ export default async function DriverDashboard() {
           </ul>
         )}
       </div>
+
+      <WhatsAppBotButton />
     </div>
   );
 }
