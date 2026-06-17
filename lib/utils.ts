@@ -100,8 +100,11 @@ export interface CapacityStatus {
   pct: number;
   /** True when current occupancy exceeds the official capacity. */
   over: boolean;
-  /** Tailwind classes for the progress bar fill. */
+  /** Tailwind classes for the progress bar fill (the occupied seats). */
   bar: string;
+  /** Tailwind bg for the bar track (the free seats) — tinted so an idle van
+   *  reads as "seats available" instead of looking blank/white. */
+  track: string;
   /** Tailwind classes (bg + text) for a colour-coded badge. */
   badge: string;
   /** Tailwind text colour for inline labels. */
@@ -124,6 +127,7 @@ export function capacityStatus(occupancy: number, capacity: number): CapacitySta
     return {
       ratio, pct, over,
       bar: "bg-red-700",
+      track: "bg-red-100",
       badge: "bg-red-700 text-white",
       text: "text-red-700",
       label: "Over Capacity — گنجائش سے زیادہ",
@@ -132,6 +136,7 @@ export function capacityStatus(occupancy: number, capacity: number): CapacitySta
     return {
       ratio, pct, over,
       bar: "bg-rose-500",
+      track: "bg-emerald-100",
       badge: "bg-rose-100 text-rose-700",
       text: "text-rose-700",
       label: "Almost full",
@@ -140,6 +145,7 @@ export function capacityStatus(occupancy: number, capacity: number): CapacitySta
     return {
       ratio, pct, over,
       bar: "bg-amber-500",
+      track: "bg-emerald-100",
       badge: "bg-amber-100 text-amber-700",
       text: "text-amber-700",
       label: "Filling up",
@@ -147,6 +153,7 @@ export function capacityStatus(occupancy: number, capacity: number): CapacitySta
   return {
     ratio, pct, over,
     bar: "bg-emerald-500",
+    track: "bg-emerald-100",
     badge: "bg-emerald-100 text-emerald-700",
     text: "text-emerald-700",
     label: "Seats available",

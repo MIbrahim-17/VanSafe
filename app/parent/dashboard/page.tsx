@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import WhatsAppSimPanel from "@/components/WhatsAppSimPanel";
+import WhatsAppBotButton from "@/components/WhatsAppBotButton";
 import DemoMode from "@/components/DemoMode";
 import ChildCard, { type CardColor } from "@/components/ChildCard";
 import AddChild from "@/components/AddChild";
@@ -195,9 +196,10 @@ export default async function ParentDashboard() {
         </div>
 
         {/* Bot column */}
-        <div>
+        <div className="space-y-3">
           <h2 className="text-title3 mb-2 text-slate-900">Ask the VanSafe bot</h2>
           <WhatsAppSimPanel whatsapp={profile.whatsapp} />
+          <WhatsAppBotButton />
         </div>
       </div>
     </div>

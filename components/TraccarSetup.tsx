@@ -74,16 +74,25 @@ export default function TraccarSetup({ initialToken }: { initialToken: string | 
         <li className="flex gap-2">
           <Step n={1} />
           <span>
-            Install the free{" "}
+            Install the free Traccar Client app —{" "}
             <a
               className="font-medium text-brand-700 hover:underline"
               href="https://play.google.com/store/apps/details?id=org.traccar.client"
               target="_blank"
               rel="noreferrer"
             >
-              Traccar Client
+              Android
             </a>{" "}
-            app (Android / iOS).
+            or{" "}
+            <a
+              className="font-medium text-brand-700 hover:underline"
+              href="https://apps.apple.com/app/traccar-client/id843156974"
+              target="_blank"
+              rel="noreferrer"
+            >
+              iPhone
+            </a>
+            .
           </span>
         </li>
         <li className="flex gap-2">
@@ -100,7 +109,7 @@ export default function TraccarSetup({ initialToken }: { initialToken: string | 
       <ol className="space-y-3 text-sm text-slate-700" start={3}>
         <li className="flex gap-2">
           <Step n={3} />
-          <span>Set <b>Frequency</b> to ~30 seconds and turn <b>Service status</b> ON.</span>
+          <span>Set <b>Distance</b> to 0 and <b>Frequency</b> to ~60 seconds, then turn <b>Service status</b> ON.</span>
         </li>
         <li className="flex gap-2">
           <Step n={4} />

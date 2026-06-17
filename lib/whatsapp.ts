@@ -16,7 +16,8 @@ type Admin = ReturnType<typeof createAdminClient>;
 
 const SIGNUP_URL = "vansafe.app/register";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://van-safe.vercel.app";
-const TRACCAR_APP_URL = "https://play.google.com/store/apps/details?id=org.traccar.client";
+const TRACCAR_ANDROID_URL = "https://play.google.com/store/apps/details?id=org.traccar.client";
+const TRACCAR_IOS_URL = "https://apps.apple.com/app/traccar-client/id843156974";
 
 /**
  * Validate Twilio's X-Twilio-Signature on the inbound webhook so only genuine
@@ -300,7 +301,8 @@ async function buildDriverContext(admin: Admin, driver: Profile) {
   return {
     driver: driver.name,
     tracking: {
-      appUrl: TRACCAR_APP_URL,
+      androidUrl: TRACCAR_ANDROID_URL,
+      iosUrl: TRACCAR_IOS_URL,
       serverUrl: `${SITE_URL}/api/track`,
       deviceToken: token,
       tokenReady: Boolean(token),
@@ -339,7 +341,7 @@ function traccarSetupText(name: string, token: string | null, lang: "en" | "ur")
   if (lang === "ur") {
     return (
       `🚐 سلام ${name}! بیک گراؤنڈ میں لوکیشن شیئر کرنے کے لیے Traccar Client ایپ استعمال کریں:\n\n` +
-      `1. ایپ انسٹال کریں: ${TRACCAR_APP_URL}\n` +
+      `1. ایپ انسٹال کریں:\n   Android: ${TRACCAR_ANDROID_URL}\n   iPhone: ${TRACCAR_IOS_URL}\n` +
       `2. Server URL: ${serverUrl}\n` +
       `3. Device identifier: ${token}\n` +
       `4. Distance = 0 اور Frequency ~60s رکھیں، پھر Service ON کر دیں۔\n\n` +
@@ -348,7 +350,7 @@ function traccarSetupText(name: string, token: string | null, lang: "en" | "ur")
   }
   return (
     `🚐 Hi ${name}! Share your van's live location hands-free with the Traccar Client app:\n\n` +
-    `1. Install: ${TRACCAR_APP_URL}\n` +
+    `1. Install:\n   Android: ${TRACCAR_ANDROID_URL}\n   iPhone: ${TRACCAR_IOS_URL}\n` +
     `2. Server URL: ${serverUrl}\n` +
     `3. Device identifier: ${token}\n` +
     `4. Set Distance to 0 and Frequency to ~60s, then turn the Service ON.\n\n` +

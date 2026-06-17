@@ -27,7 +27,7 @@ export default function OccupancyBar({
           {s.over ? "" : ` · ${seatsFree} free`}
         </span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+      <div className={`h-2 w-full overflow-hidden rounded-full ${s.track}`}>
         <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${s.pct}%` }} />
       </div>
     </div>

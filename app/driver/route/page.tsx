@@ -8,6 +8,7 @@ import RoutePlanner, {
   type SchoolOption,
 } from "@/components/RoutePlanner";
 import TraccarSetup from "@/components/TraccarSetup";
+import WhatsAppBotButton from "@/components/WhatsAppBotButton";
 import { MapPin } from "@/components/icons";
 import type { AttendanceRow, AttendanceStatus, BaseRoute, Child, Driver } from "@/lib/types";
 
@@ -100,6 +101,8 @@ export default async function DriverRoutePage() {
       />
 
       <TraccarSetup initialToken={driver?.track_token ?? null} />
+
+      <WhatsAppBotButton />
     </div>
   );
 }
