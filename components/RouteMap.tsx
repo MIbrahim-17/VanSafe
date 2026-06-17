@@ -27,38 +27,52 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
+export interface RouteEndpoint {
+  lat: number;
+  lng: number;
+  label: string;
+  color: string;
+}
+
 export default function RouteMap({
-  home,
-  school,
+  start,
+  end,
   stops,
   polyline,
 }: {
-  home: { lat: number; lng: number };
-  school: { lat: number; lng: number; name?: string };
+  start: RouteEndpoint;
+  end: RouteEndpoint;
   stops: RouteStop[];
   polyline: [number, number][];
 }) {
+  // Markers and the straight-line fallback follow the actual travel direction:
+  // start -> ordered stops -> end (drop-off). The road polyline already does.
   const ordered: [number, number][] = [
-    [home.lat, home.lng],
+    [start.lat, start.lng],
     ...stops.map((s) => [s.lat, s.lng] as [number, number]),
-    [school.lat, school.lng],
+    [end.lat, end.lng],
   ];
   const line = polyline.length > 1 ? polyline : ordered;
   const all = [...ordered, ...line];
 
+  // react-leaflet's MapContainer ignores prop changes after mount (center/zoom
+  // are read once). Keying it to the route forces a fresh map whenever the
+  // start/end or stops change, so a re-optimized route never stays "stuck".
+  const routeKey = ordered.map(([la, ln]) => `${la.toFixed(5)},${ln.toFixed(5)}`).join("|");
+
   return (
     <div className="h-80 overflow-hidden rounded-xl">
-      <MapContainer center={ordered[0]} zoom={13} scrollWheelZoom className="h-full w-full">
+      <MapContainer key={routeKey} center={ordered[0]} zoom={13} scrollWheelZoom className="h-full w-full">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Polyline positions={line} pathOptions={{ color: "#127240", weight: 5, opacity: 0.85 }} />
-        <Marker position={[home.lat, home.lng]} icon={pin("H", "#0f172a")} />
+        <Marker position={[start.lat, start.lng]} icon={pin(start.label, start.color)} />
         {stops.map((s) => (
           <Marker key={s.childId} position={[s.lat, s.lng]} icon={pin(String(s.order), "#127240")} />
         ))}
-        <Marker position={[school.lat, school.lng]} icon={pin("S", "#b45309")} />
+        <Marker position={[end.lat, end.lng]} icon={pin(end.label, end.color)} />
         <FitBounds points={all} />
       </MapContainer>
     </div>

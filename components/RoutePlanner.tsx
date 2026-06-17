@@ -247,6 +247,7 @@ export default function RoutePlanner({
                   setHomeLat(v.lat);
                   setHomeLng(v.lng);
                   setHomeAddress(v.address);
+                  setResult(null); // base changed -> last route is stale
                 }}
               />
             </div>
@@ -260,7 +261,14 @@ export default function RoutePlanner({
           </div>
           <div>
             <label className="label">Destination school</label>
-            <select className="input" value={schoolName} onChange={(e) => setSchoolName(e.target.value)}>
+            <select
+              className="input"
+              value={schoolName}
+              onChange={(e) => {
+                setSchoolName(e.target.value);
+                setResult(null); // base changed -> last route is stale
+              }}
+            >
               <option value="">Select destination school…</option>
               {schoolOptions.map((s) => (
                 <option key={s.name} value={s.name}>{s.name}</option>
@@ -276,7 +284,10 @@ export default function RoutePlanner({
               max={40}
               step="0.1"
               value={fuelAvg}
-              onChange={(e) => setFuelAvg(e.target.value)}
+              onChange={(e) => {
+                setFuelAvg(e.target.value);
+                setResult(null); // base changed -> last route is stale
+              }}
             />
           </div>
         </div>
@@ -386,7 +397,17 @@ export default function RoutePlanner({
           </div>
         )}
 
-        {result && (
+        {result && (() => {
+          // Markers sit on the exact points the optimizer routed between, so the
+          // green path's endpoints always match the H/S pins. Morning runs
+          // home -> school; afternoon runs school -> child homes -> driver's home.
+          const homeMeta = { label: "H", color: "#0f172a", name: homeAddress || "Home" };
+          const schoolMeta = { label: "S", color: "#b45309", name: school?.name ?? "School" };
+          const startMeta = result.period === "morning" ? homeMeta : schoolMeta;
+          const endMeta = result.period === "morning" ? schoolMeta : homeMeta;
+          const start = { ...result.origin, ...startMeta };
+          const end = { ...result.destination, ...endMeta };
+          return (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>{result.stops.length} stops</span>
@@ -394,8 +415,8 @@ export default function RoutePlanner({
             </div>
 
             <RouteMap
-              home={{ lat: homeLat as number, lng: homeLng as number }}
-              school={{ lat: school!.lat, lng: school!.lng, name: school!.name }}
+              start={start}
+              end={end}
               stops={result.stops}
               polyline={result.polyline}
             />
@@ -417,10 +438,10 @@ export default function RoutePlanner({
               </div>
             </div>
 
-            {/* Numbered stop list */}
+            {/* Numbered stop list — follows the route's travel direction */}
             <ol className="space-y-1 text-sm">
               <li className="flex items-center gap-2 text-slate-500">
-                <Pin label="H" /> {homeAddress || "Home"}
+                <Pin label={start.label} amber={start.label === "S"} /> {start.name}
               </li>
               {result.stops.map((s) => (
                 <li key={s.childId} className="flex items-center gap-2 text-slate-700">
@@ -428,7 +449,7 @@ export default function RoutePlanner({
                 </li>
               ))}
               <li className="flex items-center gap-2 text-slate-500">
-                <Pin label="S" amber /> {school?.name}
+                <Pin label={end.label} amber={end.label === "S"} /> {end.name}
               </li>
             </ol>
 
@@ -447,7 +468,8 @@ export default function RoutePlanner({
               </button>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

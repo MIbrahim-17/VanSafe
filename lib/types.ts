@@ -9,6 +9,8 @@ export type AlertType =
   | "arrived"
   | "stationary"
   | "route_deviation"
+  | "traffic_delay"
+  | "arriving_soon"
   | "info";
 
 export interface Profile {
@@ -125,6 +127,10 @@ export interface OptimizeResult {
   period: RoutePeriod;
   engine: RouteEngine;
   stops: RouteStop[];
+  /** Exact start/end the optimizer routed between (so map markers sit on the
+   * polyline's endpoints). Morning: home -> school. Afternoon: school -> home. */
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
   /** Decoded [lat,lng] polyline of the optimized route for map display. */
   polyline: [number, number][];
   optimizedDistanceM: number;
@@ -160,6 +166,7 @@ export interface TrackingSession {
   started_at: string | null;
   pings_today: number;
   last_ping_date: string | null;
+  period: RoutePeriod | null;
 }
 
 export interface AlertRow {

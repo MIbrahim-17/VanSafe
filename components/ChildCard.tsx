@@ -188,7 +188,15 @@ export default function ChildCard({
 
           {expanded && (
             <div className="mt-3">
-              <LiveMap pings={pings} school={school} />
+              <LiveMap
+                pings={pings}
+                school={school}
+                home={
+                  child.pickup_lat != null && child.pickup_lng != null
+                    ? { lat: child.pickup_lat, lng: child.pickup_lng }
+                    : null
+                }
+              />
               {pings.length > 0 && (
                 <ol className="mt-2 space-y-1 text-xs text-slate-500">
                   {pings.slice(0, 10).map((p) => (

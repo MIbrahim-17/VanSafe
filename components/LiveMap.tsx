@@ -4,15 +4,14 @@ import { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { minutesAgo, relativeTime } from "@/lib/utils";
+import { minutesAgo, relativeTime, NO_SIGNAL_MIN } from "@/lib/utils";
 import { MapPin } from "./icons";
 import type { LocationPing } from "@/lib/types";
-
-const NO_SIGNAL_MIN = 10;
 
 // Inline SVG glyphs (white stroke) for the custom map pins.
 const BUS_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M15 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>`;
 const SCHOOL_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg>`;
+const HOME_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>`;
 
 /** Clean circular SVG markers — avoid Leaflet's broken default image assets. */
 const vanIcon = L.divIcon({
@@ -26,7 +25,13 @@ const vanIcon = L.divIcon({
 });
 const schoolIcon = L.divIcon({
   className: "vansafe-school-marker",
-  html: `<span class="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-700 shadow-md">${SCHOOL_SVG}</span>`,
+  html: `<span class="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-amber-600 shadow-md">${SCHOOL_SVG}</span>`,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+});
+const homeIcon = L.divIcon({
+  className: "vansafe-home-marker",
+  html: `<span class="grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-slate-800 shadow-md">${HOME_SVG}</span>`,
   iconSize: [28, 28],
   iconAnchor: [14, 14],
 });
@@ -43,9 +48,11 @@ function Recenter({ lat, lng }: { lat: number; lng: number }) {
 export default function LiveMap({
   pings,
   school,
+  home,
 }: {
   pings: LocationPing[];
   school?: { lat: number; lng: number; name: string } | null;
+  home?: { lat: number; lng: number } | null;
 }) {
   // Empty state — driver hasn't started tracking today.
   if (pings.length === 0) {
@@ -98,6 +105,7 @@ export default function LiveMap({
           );
         })}
 
+        {home && <Marker position={[home.lat, home.lng]} icon={homeIcon} />}
         {school && <Marker position={[school.lat, school.lng]} icon={schoolIcon} />}
         <Marker position={[latest.lat, latest.lng]} icon={vanIcon} />
         <Recenter lat={latest.lat} lng={latest.lng} />

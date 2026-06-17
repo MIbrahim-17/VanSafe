@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsApp } from "@/lib/whatsapp";
+import { predictTrafficDelay } from "@/lib/anomaly";
 import type { Child, Profile, RoutePeriod } from "@/lib/types";
 
 /**
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
     started_at: new Date().toISOString(),
     pings_today: 0,
     last_ping_date: today,
+    period: period === "morning" || period === "afternoon" ? period : null,
   });
 
   const admin = createAdminClient();
@@ -66,6 +68,14 @@ export async function POST(req: Request) {
       const wa = (parent as Pick<Profile, "whatsapp"> | null)?.whatsapp;
       if (wa) await sendWhatsApp(wa, `VanSafe: ${message}`);
     }
+  }
+
+  // Predict today's traffic delay on the usual route and warn parents if the
+  // van is likely to run late. Non-blocking for the start flow.
+  try {
+    await predictTrafficDelay(user.id, period);
+  } catch (err) {
+    console.error("traffic-delay prediction failed:", err);
   }
 
   return NextResponse.json({ ok: true });

@@ -13,7 +13,6 @@
     "scrape:schools:dry": "node scripts/scrape-schools.mjs --dry-run"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
     "leaflet": "^1.9.4",

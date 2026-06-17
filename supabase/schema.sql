@@ -97,14 +97,17 @@ create table if not exists public.tracking_sessions (
   status text not null default 'idle',
   started_at timestamptz,
   pings_today int not null default 0,
-  last_ping_date date
+  last_ping_date date,
+  -- Active route direction, set at route start; lets per-ping checks know
+  -- whether the van is heading to school (morning) or home (afternoon).
+  period text check (period in ('morning', 'afternoon'))
 );
 
 create table if not exists public.alerts (
   id uuid primary key default gen_random_uuid(),
   parent_id uuid not null references public.profiles (id) on delete cascade,
   driver_id uuid not null references public.drivers (id) on delete cascade,
-  type text not null check (type in ('departed', 'arrived', 'stationary', 'route_deviation', 'info')),
+  type text not null check (type in ('departed', 'arrived', 'stationary', 'route_deviation', 'traffic_delay', 'arriving_soon', 'info')),
   message text not null,
   created_at timestamptz not null default now()
 );

@@ -225,6 +225,8 @@ export async function optimizeRoute(opts: {
     period,
     engine: opt.engine,
     stops: routeStops,
+    origin: { lat: origin.lat, lng: origin.lng },
+    destination: { lat: destination.lat, lng: destination.lng },
     polyline: opt.polyline,
     optimizedDistanceM: opt.distanceM,
     unoptimizedDistanceM: unopt.distanceM,

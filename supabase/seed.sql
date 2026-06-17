@@ -270,6 +270,27 @@ insert into public.locations (driver_id, lat, lng, created_at) values
   ('11111111-1111-1111-1111-111111111111', 24.9242, 67.1025, now() - interval '1 minute'),
   ('11111111-1111-1111-1111-111111111111', 24.9250, 67.1031, now() - interval '20 seconds');
 
+-- Imran's "usual route" baseline: the same NE corridor traced on the previous
+-- three weekdays, so route-deviation has historic data to compare against. A
+-- today ping >~1.2 km off this corridor (e.g. via Demo Mode) then flags as a
+-- deviation; normal on-corridor driving does not.
+insert into public.locations (driver_id, lat, lng, created_at) values
+  -- 1 day ago
+  ('11111111-1111-1111-1111-111111111111', 24.9181, 67.0972, current_date - interval '1 day' + interval '7 hours 30 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9208, 67.0996, current_date - interval '1 day' + interval '7 hours 33 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9230, 67.1014, current_date - interval '1 day' + interval '7 hours 36 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9249, 67.1030, current_date - interval '1 day' + interval '7 hours 39 minutes'),
+  -- 2 days ago
+  ('11111111-1111-1111-1111-111111111111', 24.9179, 67.0970, current_date - interval '2 days' + interval '7 hours 31 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9206, 67.0993, current_date - interval '2 days' + interval '7 hours 34 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9231, 67.1016, current_date - interval '2 days' + interval '7 hours 37 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9251, 67.1032, current_date - interval '2 days' + interval '7 hours 40 minutes'),
+  -- 3 days ago
+  ('11111111-1111-1111-1111-111111111111', 24.9182, 67.0973, current_date - interval '3 days' + interval '7 hours 29 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9210, 67.0998, current_date - interval '3 days' + interval '7 hours 32 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9229, 67.1013, current_date - interval '3 days' + interval '7 hours 35 minutes'),
+  ('11111111-1111-1111-1111-111111111111', 24.9248, 67.1029, current_date - interval '3 days' + interval '7 hours 38 minutes');
+
 insert into public.tracking_sessions (driver_id, active, status, started_at, pings_today, last_ping_date)
 values ('11111111-1111-1111-1111-111111111111', true, 'moving', now() - interval '5 minutes', 6, current_date)
 on conflict (driver_id) do update set
@@ -319,7 +340,7 @@ begin
     (driver_id, home_address, home_lat, home_lng, school_name, school_lat, school_lng, child_order, fuel_avg_kmpl)
   values
     ('11111111-1111-1111-1111-111111111111', 'Block 10, Gulshan-e-Iqbal', 24.9180, 67.0971,
-     'The City School Gulshan', 24.9215, 67.0990, array[ayesha], 9.0)
+     'The City School Gulshan', 24.9220, 67.0900, array[ayesha], 9.0)
   on conflict (driver_id) do update set
     home_lat = excluded.home_lat, home_lng = excluded.home_lng,
     school_name = excluded.school_name, school_lat = excluded.school_lat,

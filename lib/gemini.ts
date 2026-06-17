@@ -1,12 +1,44 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { DriverWithProfile, MatchResult, Review } from "@/lib/types";
 
-const MODEL = "gemini-2.0-flash";
+/**
+ * AI calls go through OpenRouter's OpenAI-compatible chat API, using Gemini 2.0
+ * Flash by default. Every feature degrades to a deterministic rule-based
+ * fallback when OPENROUTER_API_KEY is missing or a call fails, so the app always
+ * works offline. Override the model with OPENROUTER_MODEL if needed.
+ */
+const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-function getModel() {
-  const key = process.env.GEMINI_API_KEY;
+/** Send a single prompt to the model; returns the text, or null on any failure. */
+async function chat(prompt: string): Promise<string | null> {
+  const key = process.env.OPENROUTER_API_KEY;
   if (!key) return null;
-  return new GoogleGenerativeAI(key).getGenerativeModel({ model: MODEL });
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        // Optional attribution headers OpenRouter recommends.
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://vansafe.app",
+        "X-Title": "VanSafe",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = json.choices?.[0]?.message?.content?.trim();
+    return text || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Pull the first JSON value out of a model response (handles ```json fences). */
@@ -38,8 +70,7 @@ export async function rankDrivers(
   criteria: MatchCriteria,
   drivers: DriverWithProfile[]
 ): Promise<MatchResult[]> {
-  const model = getModel();
-  if (model && drivers.length) {
+  if (drivers.length) {
     const prompt = `You are VanSafe's matching assistant for school van drivers in Pakistan.
 A parent needs a van. Their request:
 - School: ${criteria.school || "any"}
@@ -67,15 +98,13 @@ Rank ALL candidates from best to worst for this parent. Reward school + area mat
 enough free seats for the children, higher rating, and verification.
 Return ONLY a JSON array: [{"driverId":"<id>","score":<0-100 integer>,"reason":"<one short sentence>"}].`;
 
-    try {
-      const res = await model.generateContent(prompt);
-      const parsed = parseJson<MatchResult[]>(res.response.text());
+    const text = await chat(prompt);
+    if (text) {
+      const parsed = parseJson<MatchResult[]>(text);
       if (Array.isArray(parsed) && parsed.length) {
         const valid = parsed.filter((m) => drivers.some((d) => d.id === m.driverId));
         if (valid.length) return valid.sort((a, b) => b.score - a.score);
       }
-    } catch {
-      // fall through to rule-based
     }
   }
   return ruleRank(criteria, drivers);
@@ -129,22 +158,14 @@ export async function summarizeReviews(
 ): Promise<string> {
   if (reviews.length === 0) return "No reviews yet — be the first to share your experience.";
 
-  const model = getModel();
-  if (model) {
-    const prompt = `Summarise these parent reviews of a school van driver into 2 short,
+  const prompt = `Summarise these parent reviews of a school van driver into 2 short,
 balanced sentences a busy parent can read in seconds. Mention recurring themes
 (punctuality, safety, comfort). Do not invent facts.
 Reviews:
 ${reviews.map((r) => `- ${r.rating}/5: ${r.comment}`).join("\n")}
 Return only the summary text.`;
-    try {
-      const res = await model.generateContent(prompt);
-      const text = res.response.text().trim();
-      if (text) return text;
-    } catch {
-      // fall through
-    }
-  }
+  const summary = await chat(prompt);
+  if (summary) return summary;
 
   const avg = (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1);
   return `Parents rate this driver ${avg}/5 across ${reviews.length} review${
@@ -161,20 +182,12 @@ export async function explainAnomaly(
   details: string,
   lang: "en" | "ur" = "en"
 ): Promise<string> {
-  const model = getModel();
-  if (model) {
-    const prompt = `Write ONE short, calm, plain-language WhatsApp alert (max 30 words) for a
+  const prompt = `Write ONE short, calm, plain-language WhatsApp alert (max 30 words) for a
 parent about their child's school van. Language: ${lang === "ur" ? "Urdu" : "English"}.
 Situation: ${type === "stationary" ? "the van has been stationary too long" : "the van seems to be taking an unusual route"}.
 Details: ${details}. No jargon. Return only the message.`;
-    try {
-      const res = await model.generateContent(prompt);
-      const text = res.response.text().trim();
-      if (text) return text;
-    } catch {
-      // fall through
-    }
-  }
+  const text = await chat(prompt);
+  if (text) return text;
 
   if (type === "stationary") {
     return lang === "ur"
@@ -190,33 +203,69 @@ Details: ${details}. No jargon. Return only the message.`;
 // 4. WhatsApp natural-language intent (EN / Urdu / mixed)
 // ---------------------------------------------------------------------------
 
-export type WaIntent = "where" | "status" | "help" | "greeting" | "unknown";
+export type WaIntent =
+  | "where"
+  | "status"
+  | "eta"
+  | "driver_info"
+  | "help"
+  | "greeting"
+  | "unknown";
 
 export async function interpretWhatsApp(
   text: string
 ): Promise<{ intent: WaIntent; lang: "en" | "ur" }> {
-  const model = getModel();
-  if (model) {
-    const prompt = `Classify this WhatsApp message from a parent to a school-van tracking bot.
+  const prompt = `Classify this WhatsApp message from a parent to a school-van tracking bot.
 Message: "${text}"
-Return ONLY JSON: {"intent":"where|status|help|greeting|unknown","lang":"en|ur"}.
-"where" = asking the van's location. "status" = asking if it's moving/arrived.
+Return ONLY JSON: {"intent":"where|status|eta|driver_info|help|greeting|unknown","lang":"en|ur"}.
+"where" = asking the van's current location. "status" = asking if it's moving/stopped.
+"eta" = asking how long / when the van will reach school or home (time to arrive).
+"driver_info" = asking about the driver: who they are, vehicle, rating, reviews, summary.
 "help" = how to use / sign up. "greeting" = hi/salam. Detect Urdu (incl. roman Urdu) vs English.`;
-    try {
-      const res = await model.generateContent(prompt);
-      const parsed = parseJson<{ intent: WaIntent; lang: "en" | "ur" }>(res.response.text());
-      if (parsed?.intent) return parsed;
-    } catch {
-      // fall through
-    }
+  const reply = await chat(prompt);
+  if (reply) {
+    const parsed = parseJson<{ intent: WaIntent; lang: "en" | "ur" }>(reply);
+    if (parsed?.intent) return parsed;
   }
   return ruleIntent(text);
+}
+
+/**
+ * Free-form answer for questions the fixed intents don't cover. Answers ONLY
+ * from the provided context (the parent's children, drivers, live locations,
+ * ETAs). Returns null when OpenRouter isn't configured or the call fails, so the
+ * caller can fall back to a deterministic reply.
+ */
+export async function answerBotQuestion(
+  question: string,
+  context: unknown,
+  lang: "en" | "ur"
+): Promise<string | null> {
+  const prompt = `You are VanSafe's helpful assistant for a parent tracking their child's school van.
+Answer the parent's question using ONLY the data below. Be concise (1-3 short sentences),
+warm, and reply in ${lang === "ur" ? "Urdu" : "English"}. Include a Google Maps link if one is
+relevant to the answer. If the data does not contain the answer, say you don't have that detail
+and mention what you can help with: live location, ETA to school/home, and driver details.
+Do not invent facts.
+
+Parent's question: "${question}"
+
+Data (JSON):
+${JSON.stringify(context)}
+
+Reply with only the message text.`;
+  return chat(prompt);
 }
 
 function ruleIntent(text: string): { intent: WaIntent; lang: "en" | "ur" } {
   const t = text.toLowerCase();
   const lang: "en" | "ur" =
-    /[؀-ۿ]/.test(text) || /kahan|kidhar|wapas|salam|kaha/.test(t) ? "ur" : "en";
+    /[؀-ۿ]/.test(text) || /kahan|kidhar|wapas|salam|kaha|kitni|kab|kaisa/.test(t) ? "ur" : "en";
+  // ETA before status, since "when will it reach" mentions "reach".
+  if (/\beta\b|how long|how much time|when will|kitni der|kitne? min|kab (tak |)(pohanch|aye|aa)|time to (reach|school|home)/.test(t))
+    return { intent: "eta", lang };
+  if (/driver|about the van|rating|review|kaisa hai|kaisa driver|summary|profile|verified|kaun/.test(t))
+    return { intent: "driver_info", lang };
   if (/where|kahan|kidhar|location|van\s*kaha|track/.test(t)) return { intent: "where", lang };
   if (/status|moving|arrive|pohanch|chal|reach/.test(t)) return { intent: "status", lang };
   if (/help|sign\s*up|register|kaise|how/.test(t)) return { intent: "help", lang };

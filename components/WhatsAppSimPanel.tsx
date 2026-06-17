@@ -8,11 +8,21 @@ interface Msg {
   text: string;
 }
 
-const QUICK = ["Where is the van?", "وین کہاں ہے؟", "Is the van moving?", "How do I sign up?"];
+const QUICK = [
+  "Where is the van?",
+  "When will the van reach school?",
+  "Tell me about the driver",
+  "وین کہاں ہے؟",
+  "How do I sign up?",
+];
 
 export default function WhatsAppSimPanel({ whatsapp }: { whatsapp: string }) {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { from: "bot", text: "As-salamu alaikum! Ask me where your child's van is — in English or Urdu." },
+    {
+      from: "bot",
+      text:
+        "As-salamu alaikum! I can share your child's van location, the driver's details and rating, and when the van will reach school or home — in English or Urdu.",
+    },
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);

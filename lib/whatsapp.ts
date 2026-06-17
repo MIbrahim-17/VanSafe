@@ -1,9 +1,12 @@
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { interpretWhatsApp } from "@/lib/gemini";
+import { interpretWhatsApp, summarizeReviews, answerBotQuestion } from "@/lib/gemini";
 import { reverseGeocode } from "@/lib/geocode";
+import { estimateEta } from "@/lib/eta";
 import { googleMapsLink, relativeTime } from "@/lib/utils";
-import type { Child, LocationPing, Profile } from "@/lib/types";
+import type { BaseRoute, Child, Driver, LocationPing, Profile, Review } from "@/lib/types";
+
+type Admin = ReturnType<typeof createAdminClient>;
 
 const SIGNUP_URL = "vansafe.app/register";
 
@@ -120,18 +123,19 @@ function digits(n: string) {
 
 /**
  * Core inbound logic, shared by the Twilio webhook and the in-app simulator.
- * Identifies the sender by WhatsApp number, infers intent, and replies.
+ *
+ * Identifies the sender, classifies intent (AI + rule fallback), and replies.
+ * To stay robust in a stateless channel (WhatsApp sends no history), it never
+ * asks "which child?" — when a child isn't named it answers for ALL linked
+ * children. Fixed intents are answered deterministically; anything else is
+ * handled by the OpenRouter (Gemini) free-form answerer over the live data, with
+ * a deterministic fallback so it always replies.
  */
 export async function handleIncoming(from: string, text: string): Promise<string> {
   const admin = createAdminClient();
   const fromDigits = digits(from);
 
-  // Match the sender to a registered parent by the tail of their number.
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("*")
-    .eq("role", "parent");
-
+  const { data: profiles } = await admin.from("profiles").select("*").eq("role", "parent");
   const parent = (profiles as Profile[] | null)?.find((p) => {
     const d = digits(p.whatsapp);
     return d && (d === fromDigits || d.endsWith(fromDigits.slice(-9)) || fromDigits.endsWith(d.slice(-9)));
@@ -147,16 +151,15 @@ export async function handleIncoming(from: string, text: string): Promise<string
 
   if (intent === "help") {
     return lang === "ur"
-      ? "آپ مجھ سے پوچھ سکتے ہیں: \"وین کہاں ہے؟\" یا \"کیا وین چل رہی ہے؟\""
-      : 'You can ask me things like "where is the van?" or "is the van moving?" and I\'ll send the live location.';
+      ? 'آپ پوچھ سکتے ہیں: "وین کہاں ہے؟"، "وین کب اسکول پہنچے گی؟"، یا "ڈرائیور کے بارے میں بتائیں" — میں فوراً جواب دوں گا۔'
+      : 'You can ask me: "where is the van?", "when will it reach school?", or "tell me about the driver" — and I\'ll reply with live info.';
   }
   if (intent === "greeting") {
     return lang === "ur"
-      ? `سلام ${parent.name}! آپ کے بچے کی وین کی لوکیشن کے لیے \"وین کہاں ہے؟\" لکھیں۔`
-      : `Hello ${parent.name}! Ask "where is the van?" any time to get the live location.`;
+      ? `سلام ${parent.name}! میں وین کی لوکیشن، اسکول پہنچنے کا وقت، اور ڈرائیور کی تفصیلات بتا سکتا ہوں۔`
+      : `Hello ${parent.name}! I can share the van's live location, its ETA to school, and the driver's details. Just ask.`;
   }
 
-  // Gather the parent's children, then work out which child the message is about.
   const { data: kidsData } = await admin
     .from("children")
     .select("*")
@@ -171,72 +174,236 @@ export async function handleIncoming(from: string, text: string): Promise<string
   }
 
   const linked = children.filter((c) => c.driver_id);
-
-  // Did the parent name a child in their message? (e.g. "where is Ali's van?")
-  const lower = text.toLowerCase();
-  const named = children.filter((c) => {
-    const first = c.name.toLowerCase().split(/\s+/)[0];
-    return first.length >= 2 && new RegExp(`\\b${first}\\b`).test(lower);
-  });
-
-  let chosen: Child | undefined;
-  if (named.length === 1) {
-    chosen = named[0];
-  } else if (named.length > 1) {
-    const names = named.map((c) => c.name).join(lang === "ur" ? " یا " : " or ");
-    return lang === "ur"
-      ? `آپ کا مطلب کون سا بچہ ہے — ${names}؟`
-      : `Did you mean ${names}? Reply with the child's name.`;
-  } else if (linked.length === 1) {
-    chosen = linked[0]; // single linked child -> answer directly
-  } else if (linked.length === 0) {
+  if (linked.length === 0) {
     return lang === "ur"
       ? "آپ کے کسی بچے کی ابھی کوئی وین منتخب نہیں۔ ایپ میں جا کر وین منتخب کریں۔"
       : "None of your children are linked to a van yet. Open the app to choose a van.";
+  }
+
+  // If a child is named (fuzzy, so typos like "Ayehsa" still match), answer for
+  // them; otherwise answer for every linked child — no lossy "which child?".
+  const named = matchChildren(children, text);
+  let targets: Child[];
+  if (named.length) {
+    const namedLinked = named.filter((c) => c.driver_id);
+    if (!namedLinked.length) {
+      return lang === "ur"
+        ? `${named[0].name} کی ابھی کوئی وین منتخب نہیں۔ ایپ میں جا کر وین منتخب کریں۔`
+        : `${named[0].name} isn't linked to a van yet. Open the app to choose one.`;
+    }
+    targets = namedLinked;
   } else {
-    const names = linked.map((c) => c.name).join(lang === "ur" ? " یا " : " or ");
-    return lang === "ur"
-      ? `آپ کس بچے کے بارے میں پوچھ رہے ہیں؟ نام لکھیں: ${names}`
-      : `Which child are you asking about? Reply with a name: ${names}`;
+    targets = linked;
   }
 
-  if (!chosen.driver_id) {
-    return lang === "ur"
-      ? `${chosen.name} کی ابھی کوئی وین منتخب نہیں۔ ایپ میں جا کر وین منتخب کریں۔`
-      : `${chosen.name} isn't linked to a van yet. Open the app to choose one.`;
+  const wantsHome = /home|ghar|گھر|واپس|house|wapas/.test(text.toLowerCase());
+  const snaps = await Promise.all(targets.map((c) => snapshot(admin, c)));
+
+  switch (intent) {
+    case "where":
+    case "status":
+      return (await Promise.all(snaps.map((s) => locationLine(s, lang)))).join("\n\n");
+    case "eta":
+      return (await Promise.all(snaps.map((s) => etaLine(s, wantsHome, lang)))).join("\n\n");
+    case "driver_info":
+      return (await Promise.all(snaps.map((s) => driverLine(s, lang)))).join("\n\n");
+    default:
+      return smartAnswer(text, snaps, lang);
   }
+}
 
-  const driverId = chosen.driver_id;
-  const { data: driverProfile } = await admin
-    .from("profiles")
-    .select("name")
-    .eq("id", driverId)
-    .single();
-  const { data: pings } = await admin
-    .from("locations")
-    .select("*")
-    .eq("driver_id", driverId)
-    .order("created_at", { ascending: false })
-    .limit(1);
+// ---------------------------------------------------------------------------
+// Bot helpers
+// ---------------------------------------------------------------------------
 
-  const latest = (pings as LocationPing[] | null)?.[0];
-  const driverName = (driverProfile as { name: string } | null)?.name ?? "the driver";
+/** A child plus everything the bot may need to answer about their van. */
+interface Snapshot {
+  child: Child;
+  driverName: string;
+  driver: Driver | null;
+  latest: LocationPing | null;
+  base: BaseRoute | null;
+}
 
-  if (!latest) {
+async function snapshot(admin: Admin, child: Child): Promise<Snapshot> {
+  const driverId = child.driver_id as string;
+  const [{ data: prof }, { data: drv }, { data: pings }, { data: route }] = await Promise.all([
+    admin.from("profiles").select("name").eq("id", driverId).single(),
+    admin.from("drivers").select("*").eq("id", driverId).single(),
+    admin.from("locations").select("*").eq("driver_id", driverId).order("created_at", { ascending: false }).limit(1),
+    admin.from("routes").select("*").eq("driver_id", driverId).maybeSingle(),
+  ]);
+  return {
+    child,
+    driverName: (prof as { name: string } | null)?.name ?? "the driver",
+    driver: (drv as Driver | null) ?? null,
+    latest: (pings as LocationPing[] | null)?.[0] ?? null,
+    base: (route as BaseRoute | null) ?? null,
+  };
+}
+
+async function locationLine(s: Snapshot, lang: "en" | "ur"): Promise<string> {
+  if (!s.latest) {
     return lang === "ur"
-      ? `${chosen.name} کی وین (${driverName}) نے ابھی ٹریکنگ شروع نہیں کی۔`
-      : `${chosen.name}'s van (${driverName}) hasn't started sharing location yet today.`;
+      ? `${s.child.name} کی وین (${s.driverName}) نے ابھی ٹریکنگ شروع نہیں کی۔`
+      : `${s.child.name}'s van (${s.driverName}) hasn't started sharing location yet today.`;
   }
-
-  const mapsLink = googleMapsLink(latest.lat, latest.lng);
-  const when = relativeTime(latest.created_at);
-  const place = await reverseGeocode(latest.lat, latest.lng);
+  const mapsLink = googleMapsLink(s.latest.lat, s.latest.lng);
+  const when = relativeTime(s.latest.created_at);
+  const place = await reverseGeocode(s.latest.lat, s.latest.lng);
   const at = place ? `\n📍 ${place}` : "";
+  return lang === "ur"
+    ? `${s.child.name} کی وین (${s.driverName}) کی آخری لوکیشن (${when}):${at}\n${mapsLink}`
+    : `${s.child.name}'s van (${s.driverName}) — last seen ${when}:${at}\n${mapsLink}`;
+}
 
-  if (lang === "ur") {
-    return `${chosen.name} کی وین (${driverName}) کی آخری لوکیشن (${when}):${at}\n${mapsLink}`;
+async function etaLine(s: Snapshot, wantsHome: boolean, lang: "en" | "ur"): Promise<string> {
+  if (!s.latest) {
+    return lang === "ur"
+      ? `${s.child.name} کی وین (${s.driverName}) نے ابھی ٹریکنگ شروع نہیں کی، اس لیے وقت کا اندازہ ممکن نہیں۔`
+      : `${s.child.name}'s van (${s.driverName}) isn't sharing location yet, so I can't estimate the time.`;
   }
-  return `${chosen.name}'s van (${driverName}) — last seen ${when}:${at}\n${mapsLink}`;
+  const b = s.base;
+  const target =
+    wantsHome && b?.home_lat != null && b?.home_lng != null
+      ? { lat: b.home_lat, lng: b.home_lng, label: lang === "ur" ? "گھر" : "home" }
+      : b?.school_lat != null && b?.school_lng != null
+      ? { lat: b.school_lat, lng: b.school_lng, label: b.school_name || (lang === "ur" ? "اسکول" : "school") }
+      : null;
+  if (!target) {
+    return lang === "ur"
+      ? `${s.driverName} نے ابھی اپنا راستہ سیٹ نہیں کیا، اس لیے وقت کا اندازہ ممکن نہیں۔`
+      : `${s.driverName} hasn't set up their route yet, so I can't estimate the time.`;
+  }
+  const eta = await estimateEta(
+    { lat: s.latest.lat, lng: s.latest.lng },
+    { lat: target.lat, lng: target.lng },
+    { traffic: true }
+  );
+  const mins = Math.max(1, Math.round(eta.durationTrafficS / 60));
+  return lang === "ur"
+    ? `${s.child.name} کی وین (${s.driverName}) تقریباً ${mins} منٹ میں ${target.label} پہنچ جائے گی۔`
+    : `${s.child.name}'s van (${s.driverName}) should reach ${target.label} in about ${mins} min.`;
+}
+
+async function driverLine(s: Snapshot, lang: "en" | "ur"): Promise<string> {
+  const d = s.driver;
+  if (!d) {
+    return lang === "ur"
+      ? `${s.driverName} کی پروفائل ابھی دستیاب نہیں۔`
+      : `${s.driverName}'s profile isn't available right now.`;
+  }
+  const { data: reviewRows } = await createAdminClient()
+    .from("reviews")
+    .select("rating,comment")
+    .eq("driver_id", s.child.driver_id as string)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const reviews = (reviewRows as Pick<Review, "rating" | "comment">[] | null) ?? [];
+  const summary = await summarizeReviews(reviews);
+
+  const vehicle = d.make_model || d.vehicle_type;
+  const seatsFree = Math.max(0, (d.official_capacity || d.capacity) - d.occupancy);
+  const verified = d.verified
+    ? lang === "ur" ? "تصدیق شدہ ✅" : "Verified ✅"
+    : lang === "ur" ? "غیر تصدیق شدہ" : "Not yet verified";
+
+  return lang === "ur"
+    ? `🧑‍✈️ ${s.driverName} (${s.child.name} کی وین)\nگاڑی: ${vehicle}${d.plate ? ` (${d.plate})` : ""}\nریٹنگ: ${d.rating}/5 (${d.review_count} ریویوز) · ${verified}\nخالی سیٹیں: ${seatsFree}\n📝 ${summary}`
+    : `🧑‍✈️ ${s.driverName} (${s.child.name}'s van)\nVehicle: ${vehicle}${d.plate ? ` (${d.plate})` : ""}\nRating: ${d.rating}/5 (${d.review_count} reviews) · ${verified}\nSeats free: ${seatsFree}\n📝 ${summary}`;
+}
+
+/** Free-form questions: assemble live context and let Gemini answer; fall back. */
+async function smartAnswer(text: string, snaps: Snapshot[], lang: "en" | "ur"): Promise<string> {
+  const context = await Promise.all(
+    snaps.map(async (s) => {
+      const d = s.driver;
+      let etaSchoolMin: number | null = null;
+      let place: string | null = null;
+      if (s.latest) {
+        place = await reverseGeocode(s.latest.lat, s.latest.lng);
+        if (s.base?.school_lat != null && s.base?.school_lng != null) {
+          const eta = await estimateEta(
+            { lat: s.latest.lat, lng: s.latest.lng },
+            { lat: s.base.school_lat, lng: s.base.school_lng },
+            { traffic: true }
+          );
+          etaSchoolMin = Math.max(1, Math.round(eta.durationTrafficS / 60));
+        }
+      }
+      return {
+        child: s.child.name,
+        school: s.child.school,
+        driver: d
+          ? {
+              name: s.driverName,
+              vehicle: d.make_model || d.vehicle_type,
+              plate: d.plate,
+              verified: d.verified,
+              rating: d.rating,
+              reviews: d.review_count,
+              seatsFree: Math.max(0, (d.official_capacity || d.capacity) - d.occupancy),
+            }
+          : null,
+        location: s.latest
+          ? {
+              place,
+              lastSeen: relativeTime(s.latest.created_at),
+              mapsLink: googleMapsLink(s.latest.lat, s.latest.lng),
+            }
+          : null,
+        etaToSchoolMin: etaSchoolMin,
+      };
+    })
+  );
+
+  const ai = await answerBotQuestion(text, context, lang);
+  if (ai) return ai;
+
+  // Deterministic fallback (no AI key / call failed): answer with locations.
+  const lines = await Promise.all(snaps.map((s) => locationLine(s, lang)));
+  const hint =
+    lang === "ur"
+      ? '\n\nآپ پوچھ سکتے ہیں: "وین کب اسکول پہنچے گی؟" یا "ڈرائیور کے بارے میں بتائیں"۔'
+      : '\n\nYou can also ask: "when will it reach school?" or "tell me about the driver".';
+  return lines.join("\n\n") + hint;
+}
+
+/** Levenshtein edit distance (small strings) for fuzzy child-name matching. */
+function editDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+/** Children whose first name appears in the text (exact word or a near-typo). */
+function matchChildren(children: Child[], text: string): Child[] {
+  const lower = text.toLowerCase();
+  // Keep ASCII word chars and the Urdu/Arabic block; split into comparable tokens.
+  const tokens = lower
+    .replace(/[^\w؀-ۿ\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 3);
+  return children.filter((c) => {
+    const first = c.name.toLowerCase().split(/\s+/)[0];
+    if (first.length < 3) return false;
+    if (tokens.includes(first)) return true; // exact standalone name (EN or UR)
+    const esc = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${esc}\\b`).test(lower)) return true; // e.g. "ayesha's"
+    return tokens.some(
+      (t) => Math.abs(t.length - first.length) <= 2 && editDistance(t, first) <= 2
+    );
+  });
 }
 
 /** Build a proactive alert message body for a given event. */

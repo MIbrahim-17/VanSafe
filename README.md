@@ -10,7 +10,7 @@ review summaries, and anomaly detection.
 
 - **Next.js 14** (App Router) + React + TypeScript + Tailwind CSS
 - **Supabase** — Postgres, Auth, Storage (documents), Realtime
-- **Google Gemini** (`gemini-2.0-flash`) — matching, review summaries, anomaly
+- **Gemini 2.0 Flash via OpenRouter** — matching, review summaries, anomaly
   explanations, WhatsApp NL replies (rule-based fallback when no key)
 - **Twilio WhatsApp** — real inbound/outbound bot, with an in-app simulator fallback
 
@@ -50,7 +50,7 @@ cp .env.local.example .env.local
 ```
 
 Fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and
-`SUPABASE_SECRET_KEY` (required). `GEMINI_API_KEY` and the `TWILIO_*` vars
+`SUPABASE_SECRET_KEY` (required). `OPENROUTER_API_KEY` and the `TWILIO_*` vars
 are optional — without them the app uses rule-based AI and the in-app WhatsApp
 simulator.
 

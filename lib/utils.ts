@@ -58,11 +58,21 @@ export function relativeTime(iso: string): string {
   return h === 1 ? "1 hour ago" : `${h} hours ago`;
 }
 
+/** Latest ping older than this (minutes) means we've lost the van's signal.
+ *  Shared by the status badge (deriveStatus) and the LiveMap overlay. */
+export const NO_SIGNAL_MIN = 3;
+/** Pings (drivers ping ~every 30s) that must cluster before a stop is confirmed. */
+const STOP_PINGS = 5;
+/** "Same location" tolerance in metres — absorbs normal GPS jitter while parked. */
+const STOP_RADIUS_M = 40;
+
 /**
- * Derive a live status from the most recent pings.
- * - No Signal: latest ping older than 3 minutes (or none).
- * - Moving: travelled > 40 m between the last two pings.
- * - Stopped: otherwise.
+ * Derive a live status from the most recent pings (newest first).
+ * - No Signal: no pings, or the latest is older than NO_SIGNAL_MIN minutes.
+ * - Stopped: the last STOP_PINGS pings are ALL within STOP_RADIUS_M of the latest
+ *   (i.e. the van has genuinely been parked for ~2+ minutes).
+ * - Moving: any other live signal — so a single stale/jittery ping or a brief
+ *   pause at a light never prematurely flips the badge to "Stopped".
  */
 export function deriveStatus(pings: LocationPing[]): {
   status: TrackStatus | "no_signal";
@@ -70,14 +80,17 @@ export function deriveStatus(pings: LocationPing[]): {
 } {
   if (pings.length === 0) return { status: "no_signal", label: "No Signal" };
   const latest = pings[0];
-  if (minutesAgo(latest.created_at) > 3)
+  if (minutesAgo(latest.created_at) > NO_SIGNAL_MIN)
     return { status: "no_signal", label: "No Signal" };
-  if (pings.length >= 2) {
-    const prev = pings[1];
-    const d = distanceMeters(latest.lat, latest.lng, prev.lat, prev.lng);
-    if (d > 40) return { status: "moving", label: "Moving" };
+
+  if (pings.length >= STOP_PINGS) {
+    const recent = pings.slice(0, STOP_PINGS);
+    const stationary = recent.every(
+      (p) => distanceMeters(latest.lat, latest.lng, p.lat, p.lng) <= STOP_RADIUS_M
+    );
+    if (stationary) return { status: "stopped", label: "Stopped" };
   }
-  return { status: "stopped", label: "Stopped" };
+  return { status: "moving", label: "Moving" };
 }
 
 export interface CapacityStatus {

@@ -5,6 +5,7 @@ import WhatsAppSimPanel from "@/components/WhatsAppSimPanel";
 import DemoMode from "@/components/DemoMode";
 import ChildCard, { type CardColor } from "@/components/ChildCard";
 import AddChild from "@/components/AddChild";
+import ClearAlertsButton from "@/components/ClearAlertsButton";
 import { relativeTime } from "@/lib/utils";
 import { cityLabel } from "@/lib/constants";
 import { schoolLocation } from "@/lib/schools";
@@ -19,6 +20,8 @@ const ALERT_ICON: Record<string, ComponentType<{ size?: number; className?: stri
   arrived: School,
   stationary: Clock,
   route_deviation: Route,
+  traffic_delay: Clock,
+  arriving_soon: Bus,
   info: Alert,
 };
 
@@ -162,7 +165,10 @@ export default async function ParentDashboard() {
           {demoTargets.length > 0 && <DemoMode targets={demoTargets} />}
 
           <div className="card p-4">
-            <h2 className="text-title3 mb-3 text-slate-900">Recent alerts</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-title3 text-slate-900">Recent alerts</h2>
+              {alertRows.length > 0 && <ClearAlertsButton />}
+            </div>
             {alertRows.length === 0 ? (
               <p className="text-sm text-slate-500">
                 No alerts yet. You&apos;ll be notified on departure, arrival and anything unusual.

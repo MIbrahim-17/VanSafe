@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { runAnomalyChecks } from "@/lib/anomaly";
+import { runAnomalyChecks, predictTrafficDelay } from "@/lib/anomaly";
 import { distanceMeters } from "@/lib/utils";
-import type { LocationPing } from "@/lib/types";
+import type { LocationPing, TrackingSession } from "@/lib/types";
+
+// Re-check traffic roughly every Nth ping (~30s cadence => ~every 10 min).
+const TRAFFIC_RECHECK_EVERY = 20;
 
 /** GET /api/locations?driverId=... -> latest ping + last 10 (RLS enforced). */
 export async function GET(req: Request) {
@@ -68,8 +71,24 @@ export async function POST(req: Request) {
     .update({ status, pings_today: pingsToday, last_ping_date: today })
     .eq("driver_id", user.id);
 
-  // Fire-and-await anomaly checks (stationary / route deviation).
+  // Fire-and-await anomaly checks (stationary / route deviation / arriving soon).
   await runAnomalyChecks(user.id);
+
+  // Mid-route traffic re-check from the van's current position, throttled so we
+  // don't hit the routing API on every ping. Uses the period saved at start.
+  const sess = session as TrackingSession | null;
+  if (
+    sess?.active &&
+    (sess.period === "morning" || sess.period === "afternoon") &&
+    pingsToday > 0 &&
+    pingsToday % TRAFFIC_RECHECK_EVERY === 0
+  ) {
+    try {
+      await predictTrafficDelay(user.id, sess.period, { origin: { lat, lng } });
+    } catch (err) {
+      console.error("mid-route traffic re-check failed:", err);
+    }
+  }
 
   return NextResponse.json({ ok: true, status, pingsToday });
 }
