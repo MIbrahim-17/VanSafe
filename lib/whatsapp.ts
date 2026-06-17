@@ -222,9 +222,15 @@ async function loadHistory(admin: Admin, sender: string): Promise<ChatMessage[]>
 
 /** Append this turn (user + assistant) and prune old rows for the sender. */
 async function saveTurn(admin: Admin, sender: string, userText: string, reply: string): Promise<void> {
+  // Distinct, ordered timestamps: a batch insert evaluates now() once, giving
+  // both rows the SAME created_at. loadHistory then can't tell which came first,
+  // and if the assistant row sorts before its question the model sees the prior
+  // question as unanswered and re-answers it. +1ms keeps user strictly before
+  // assistant (and turns strictly ordered).
+  const now = Date.now();
   await admin.from("bot_conversations").insert([
-    { sender, role: "user", content: userText },
-    { sender, role: "assistant", content: reply },
+    { sender, role: "user", content: userText, created_at: new Date(now).toISOString() },
+    { sender, role: "assistant", content: reply, created_at: new Date(now + 1).toISOString() },
   ]);
   const { data: old } = await admin
     .from("bot_conversations")
