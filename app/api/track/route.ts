@@ -101,8 +101,11 @@ async function readPing(req: Request): Promise<Ping> {
   }
   return {
     id: id != null ? String(id) : null,
-    lat: Number(lat),
-    lng: Number(lon),
+    // Number(null) is 0, not NaN — coerce missing coords to NaN so a ping with
+    // no parseable location (e.g. Traccar's bodiless motionchange event) is
+    // rejected by the isFinite check below instead of inserting a fake (0,0).
+    lat: lat != null ? Number(lat) : NaN,
+    lng: lon != null ? Number(lon) : NaN,
     timestamp: ts != null ? String(ts) : null,
     debug,
   };

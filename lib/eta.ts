@@ -50,7 +50,7 @@ async function googleEta(
   try {
     const res = await fetch(
       `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(5000) }
     );
     if (!res.ok) return null;
     const json = (await res.json()) as {
@@ -96,7 +96,7 @@ async function osrmEta(
   try {
     const res = await fetch(
       `https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(5000) }
     );
     if (!res.ok) return null;
     const json = (await res.json()) as {

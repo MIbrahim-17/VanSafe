@@ -29,6 +29,7 @@ async function chat(prompt: string): Promise<string | null> {
         temperature: 0.3,
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as {
