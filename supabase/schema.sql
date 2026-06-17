@@ -37,6 +37,9 @@ create table if not exists public.drivers (
   verified boolean not null default false,
   rating numeric(2, 1) not null default 0,
   review_count int not null default 0,
+  -- Secret id the driver enters into the Traccar Client app (the OsmAnd-protocol
+  -- /api/track endpoint authenticates pings by this token).
+  track_token text unique default substr(md5(random()::text || clock_timestamp()::text), 1, 12),
   created_at timestamptz not null default now()
 );
 

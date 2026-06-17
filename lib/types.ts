@@ -48,6 +48,8 @@ export interface Driver {
   verified: boolean;
   rating: number;
   review_count: number;
+  /** Secret device id for the Traccar Client background-tracking integration. */
+  track_token: string | null;
   created_at: string;
 }
 

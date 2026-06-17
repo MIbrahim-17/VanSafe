@@ -7,6 +7,7 @@ import RoutePlanner, {
   type ChildLite,
   type SchoolOption,
 } from "@/components/RoutePlanner";
+import TraccarSetup from "@/components/TraccarSetup";
 import { MapPin } from "@/components/icons";
 import type { AttendanceRow, AttendanceStatus, BaseRoute, Child, Driver } from "@/lib/types";
 
@@ -19,11 +20,11 @@ export default async function DriverRoutePage() {
 
   // Driver (for served schools), base route, linked children, today's attendance.
   const [{ data: driverRow }, { data: routeRow }, { data: kidRows }] = await Promise.all([
-    admin.from("drivers").select("schools").eq("id", profile.id).maybeSingle(),
+    admin.from("drivers").select("schools,track_token").eq("id", profile.id).maybeSingle(),
     admin.from("routes").select("*").eq("driver_id", profile.id).maybeSingle(),
     admin.from("children").select("*").eq("driver_id", profile.id).order("created_at"),
   ]);
-  const driver = driverRow as Pick<Driver, "schools"> | null;
+  const driver = driverRow as Pick<Driver, "schools" | "track_token"> | null;
   const base = routeRow as BaseRoute | null;
 
   let children = (kidRows as Child[] | null) ?? [];
@@ -97,6 +98,8 @@ export default async function DriverRoutePage() {
         schoolOptions={schoolOptions}
         city={profile.city}
       />
+
+      <TraccarSetup initialToken={driver?.track_token ?? null} />
     </div>
   );
 }
