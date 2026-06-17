@@ -40,40 +40,84 @@ function parseTimestamp(raw: string | null): string | undefined {
   return Number.isNaN(t) ? undefined : new Date(t).toISOString();
 }
 
-/**
- * Read OsmAnd params from the query string AND (for POST) the body, since
- * Traccar Client can put them in either depending on version/config.
- */
-async function readParams(req: Request): Promise<URLSearchParams> {
-  const params = new URLSearchParams(new URL(req.url).searchParams);
-  if (req.method !== "POST") return params;
-  try {
-    const ct = req.headers.get("content-type") || "";
-    if (ct.includes("form-data") || ct.includes("x-www-form-urlencoded")) {
-      const form = await req.formData();
-      form.forEach((v, k) => {
-        if (!params.has(k)) params.set(k, String(v));
-      });
-    } else {
-      const text = await req.text();
-      if (text) {
-        new URLSearchParams(text).forEach((v, k) => {
-          if (!params.has(k)) params.set(k, v);
-        });
+interface Ping {
+  id: string | null;
+  lat: number;
+  lng: number;
+  timestamp: string | null;
+  debug: string;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** Pull id/lat/lon/timestamp out of a parsed JSON body (Traccar Client iOS posts
+ *  JSON: flat OsmAnd, the transistorsoft {location:{coords}} shape, or a batch
+ *  array). Returns partials; query-string values take precedence. */
+function fromJson(j: any): { id: any; lat: any; lon: any; ts: any } {
+  const id = j?.id ?? j?.device_id ?? j?.deviceId ?? j?.uniqueId ?? null;
+  let loc = j?.location ?? j;
+  if (Array.isArray(loc)) loc = loc[loc.length - 1] ?? {};
+  const c = loc?.coords ?? loc ?? {};
+  return {
+    id,
+    lat: c?.lat ?? c?.latitude ?? null,
+    lon: c?.lon ?? c?.lng ?? c?.longitude ?? null,
+    ts: loc?.timestamp ?? j?.timestamp ?? null,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Read a ping from the query string and/or POST body (JSON or form-encoded). */
+async function readPing(req: Request): Promise<Ping> {
+  const qp = new URL(req.url).searchParams;
+  let id: unknown = qp.get("id");
+  let lat: unknown = qp.get("lat");
+  let lon: unknown = qp.get("lon");
+  let ts: unknown = qp.get("timestamp");
+  let debug = "src=query";
+
+  if (req.method === "POST" && (id == null || lat == null || lon == null)) {
+    let raw = "";
+    try {
+      raw = await req.text();
+    } catch {
+      /* no body */
+    }
+    debug = `ct=${req.headers.get("content-type") ?? "-"} body=${raw.slice(0, 200)}`;
+    if (raw) {
+      try {
+        const j = fromJson(JSON.parse(raw));
+        id = id ?? j.id;
+        lat = lat ?? j.lat;
+        lon = lon ?? j.lon;
+        ts = ts ?? j.ts;
+      } catch {
+        const bp = new URLSearchParams(raw);
+        id = id ?? bp.get("id");
+        lat = lat ?? bp.get("lat");
+        lon = lon ?? bp.get("lon");
+        ts = ts ?? bp.get("timestamp");
       }
     }
-  } catch {
-    /* no/unsupported body */
   }
-  return params;
+  return {
+    id: id != null ? String(id) : null,
+    lat: Number(lat),
+    lng: Number(lon),
+    timestamp: ts != null ? String(ts) : null,
+    debug,
+  };
 }
 
 async function handle(req: Request): Promise<Response> {
-  const q = await readParams(req);
-  const token = q.get("id");
-  const lat = Number(q.get("lat"));
-  const lng = Number(q.get("lon"));
-  console.log(`[track] ${req.method} id=${token ?? "-"} lat=${q.get("lat") ?? "-"} lon=${q.get("lon") ?? "-"}`);
+  const ping = await readPing(req);
+  const token = ping.id;
+  const lat = ping.lat;
+  const lng = ping.lng;
+  console.log(
+    `[track] ${req.method} id=${token ?? "-"} lat=${Number.isFinite(lat) ? lat : "-"} lon=${
+      Number.isFinite(lng) ? lng : "-"
+    } | ${ping.debug}`
+  );
   if (!token || !Number.isFinite(lat) || !Number.isFinite(lng)) {
     return new Response("id, lat, lon required", { status: 400 });
   }
@@ -91,7 +135,7 @@ async function handle(req: Request): Promise<Response> {
   }
   const driverId = driver.id;
 
-  const createdAt = parseTimestamp(q.get("timestamp"));
+  const createdAt = parseTimestamp(ping.timestamp);
   const { error: insErr } = await admin.from("locations").insert({
     driver_id: driverId,
     lat,
