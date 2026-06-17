@@ -20,6 +20,11 @@ export interface ChatMessage {
   content: string;
 }
 
+// Gemini 2.5 Flash over OpenRouter has variable tail latency (occasionally
+// 15s+). 14s stays under Twilio's ~15s webhook limit while catching all but the
+// rare extreme; those fall back to deterministic text.
+const CHAT_TIMEOUT_MS = 14000;
+
 /** Send a full message list (system + history + user) to the model. */
 async function chatMessages(
   messages: ChatMessage[],
@@ -41,9 +46,11 @@ async function chatMessages(
         model: MODEL,
         messages,
         temperature: opts.temperature ?? 0.3,
+        // Prefer the fastest available provider to cut tail latency.
+        provider: { sort: "latency" },
       }),
       cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as {
@@ -309,8 +316,10 @@ Your job:
 - When asked, guide them on how to use VanSafe: tracking the van, understanding alerts, choosing or reviewing a driver, marking a child absent.
 
 Rules:
-- Be warm and concise — 1 to 4 short sentences. This is WhatsApp, never an essay.
+- Be warm and concise — 1 to 4 short sentences per child. This is WhatsApp, never an essay.
 - Reply in the SAME language the parent used: English, Urdu, or roman Urdu.
+- NEVER ask the parent which child they mean. If they didn't name a child and the data has more than one, answer for EVERY child in the data (one short labelled line each). The data already contains only the relevant children.
+- If a child in the data isn't linked to a van, say so briefly for that child.
 - When the answer is about where the van is, include the Google Maps link from the data.
 - Never invent facts or numbers. If the data does not contain the answer, say so plainly and mention what you can help with: live location, ETA to school/home, and driver details.`;
 
@@ -349,6 +358,35 @@ export async function onboardingReply(
 ): Promise<string | null> {
   const messages: ChatMessage[] = [
     { role: "system", content: ONBOARDING_SYSTEM },
+    ...history,
+    { role: "user", content: question },
+  ];
+  return chatMessages(messages);
+}
+
+const DRIVER_SYSTEM = `You are VanSafe's assistant on WhatsApp, chatting with a registered VAN DRIVER in Pakistan.
+VanSafe lets drivers share their van's live location hands-free (via the Traccar Client app), run optimized routes, and build trust with parents through ratings and reviews.
+
+Your job:
+- Help the driver share their van's location. When they ask how to start/share tracking, give the Traccar Client setup using the EXACT serverUrl and deviceToken from the data: install the app (appUrl), set Server URL = serverUrl, Device identifier = deviceToken, set Distance to 0 and Frequency to ~60s, then turn the Service ON. If tokenReady is false, tell them to open the Route page in the web app to generate their token.
+- Answer using ONLY the data: who is linked to their van (children + their parents), their rating and reviews, their vehicle, and whether their van is currently sending location today (tracking).
+- Guide them on using VanSafe as a driver: route optimization, regenerating their tracking token, marking trips.
+
+Rules:
+- Warm and concise — 1 to 4 short sentences, or a short numbered list for setup steps. WhatsApp style.
+- Reply in the SAME language the driver used: English, Urdu, or roman Urdu.
+- The deviceToken is the driver's OWN credential — it is fine to share it with them when relevant.
+- Never invent facts. If the data does not contain the answer, say so and mention what you can help with: sharing location, who is linked to their van, their rating, and route tips.`;
+
+/** Compose a reply for a registered driver over their VanSafe data + short history. */
+export async function driverAssistantReply(
+  question: string,
+  context: unknown,
+  history: ChatMessage[]
+): Promise<string | null> {
+  const messages: ChatMessage[] = [
+    { role: "system", content: DRIVER_SYSTEM },
+    { role: "system", content: `Driver data (JSON):\n${JSON.stringify(context)}` },
     ...history,
     { role: "user", content: question },
   ];

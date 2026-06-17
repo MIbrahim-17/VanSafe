@@ -1,10 +1,16 @@
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { assistantReply, onboardingReply, summarizeReviews, type ChatMessage } from "@/lib/gemini";
+import {
+  assistantReply,
+  driverAssistantReply,
+  onboardingReply,
+  summarizeReviews,
+  type ChatMessage,
+} from "@/lib/gemini";
 import { reverseGeocode } from "@/lib/geocode";
 import { estimateEta } from "@/lib/eta";
 import { googleMapsLink, relativeTime } from "@/lib/utils";
-import type { BaseRoute, Child, Driver, LocationPing, Profile, Review } from "@/lib/types";
+import type { BaseRoute, Child, Driver, LocationPing, Profile, Review, TrackingSession } from "@/lib/types";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -130,7 +136,8 @@ function digits(n: string) {
  *  - Registered parent: we gather their live van data (location, ETA, driver,
  *    reviews) and a few prior turns, then let the model answer naturally and
  *    guide them on using VanSafe.
- *  - Registered driver: returns their hands-free Traccar setup.
+ *  - Registered driver: we gather their VanSafe data (Traccar setup, who's
+ *    linked, rating, today's tracking) and let the model answer + guide them.
  *  - Unregistered: the model gives VanSafe onboarding (how/why to sign up).
  *
  * Short conversation memory (last ~2 exchanges per sender) makes follow-ups work
@@ -149,12 +156,15 @@ export async function handleIncoming(from: string, text: string): Promise<string
     return d && (d === fromDigits || d.endsWith(fromDigits.slice(-9)) || fromDigits.endsWith(d.slice(-9)));
   });
 
-  // --- Not a registered parent: driver setup, else AI onboarding ---
+  // --- Not a registered parent: AI driver assistant, else AI onboarding ---
   if (!parent) {
-    const driverReply = await driverSetupReply(admin, fromDigits, lang);
-    if (driverReply) {
-      await saveTurn(admin, fromDigits, text, driverReply);
-      return driverReply;
+    const driver = await findDriver(admin, fromDigits);
+    if (driver) {
+      const dctx = await buildDriverContext(admin, driver);
+      const ai = await driverAssistantReply(text, dctx, history);
+      const reply = ai ?? traccarSetupText(driver.name, dctx.tracking.deviceToken, lang);
+      await saveTurn(admin, fromDigits, text, reply);
+      return reply;
     }
     const ai = await onboardingReply(text, history);
     const reply =
@@ -238,52 +248,110 @@ function detectLang(text: string): "en" | "ur" {
 // Bot helpers
 // ---------------------------------------------------------------------------
 
-/**
- * If the sender is a registered driver, return their Traccar background-tracking
- * setup (app link + server URL + their secret token). Returns null otherwise.
- */
-async function driverSetupReply(
-  admin: Admin,
-  fromDigits: string,
-  lang: "en" | "ur"
-): Promise<string | null> {
+/** Find the driver profile whose WhatsApp number matches the sender, else null. */
+async function findDriver(admin: Admin, fromDigits: string): Promise<Profile | null> {
   const { data: drivers } = await admin.from("profiles").select("*").eq("role", "driver");
-  const driver = (drivers as Profile[] | null)?.find((p) => {
-    const d = digits(p.whatsapp);
-    return d && (d === fromDigits || d.endsWith(fromDigits.slice(-9)) || fromDigits.endsWith(d.slice(-9)));
-  });
-  if (!driver) return null;
+  return (
+    (drivers as Profile[] | null)?.find((p) => {
+      const d = digits(p.whatsapp);
+      return d && (d === fromDigits || d.endsWith(fromDigits.slice(-9)) || fromDigits.endsWith(d.slice(-9)));
+    }) ?? null
+  );
+}
 
-  const { data: drvRow } = await admin
-    .from("drivers")
-    .select("track_token")
-    .eq("id", driver.id)
-    .maybeSingle();
-  const token = (drvRow as Pick<Driver, "track_token"> | null)?.track_token;
+/**
+ * Everything the assistant may need to answer a driver: their Traccar setup
+ * (server URL + device token), who's linked to their van (children + parents),
+ * today's tracking status, and their vehicle/rating. Passed as JSON context.
+ */
+async function buildDriverContext(admin: Admin, driver: Profile) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: drvRow }, { data: kids }, { data: sess }, { data: pings }, { data: route }] =
+    await Promise.all([
+      admin.from("drivers").select("*").eq("id", driver.id).maybeSingle(),
+      admin.from("children").select("name,school,parent_id").eq("driver_id", driver.id),
+      admin.from("tracking_sessions").select("*").eq("driver_id", driver.id).maybeSingle(),
+      admin
+        .from("locations")
+        .select("created_at")
+        .eq("driver_id", driver.id)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      admin.from("routes").select("*").eq("driver_id", driver.id).maybeSingle(),
+    ]);
+
+  const drv = drvRow as Driver | null;
+  const children = (kids as { name: string; school: string; parent_id: string }[] | null) ?? [];
+
+  // Resolve parent names for the linked children.
+  const parentIds = Array.from(new Set(children.map((c) => c.parent_id)));
+  const { data: parentRows } = parentIds.length
+    ? await admin.from("profiles").select("id,name").in("id", parentIds)
+    : { data: [] };
+  const parentName = new Map(
+    ((parentRows as { id: string; name: string }[] | null) ?? []).map((p) => [p.id, p.name])
+  );
+
+  const token = drv?.track_token ?? null;
+  const session = sess as TrackingSession | null;
+  const lastPing = (pings as { created_at: string }[] | null)?.[0]?.created_at ?? null;
+  const base = route as BaseRoute | null;
+
+  return {
+    driver: driver.name,
+    tracking: {
+      appUrl: TRACCAR_APP_URL,
+      serverUrl: `${SITE_URL}/api/track`,
+      deviceToken: token,
+      tokenReady: Boolean(token),
+      sharingToday: session?.last_ping_date === today,
+      status: session?.status ?? "not started",
+      pingsToday: session?.last_ping_date === today ? session?.pings_today ?? 0 : 0,
+      lastPing: lastPing ? relativeTime(lastPing) : null,
+    },
+    passengers: children.map((c) => ({
+      child: c.name,
+      school: c.school,
+      parent: parentName.get(c.parent_id) ?? "a parent",
+    })),
+    vehicle: drv ? drv.make_model || drv.vehicle_type : null,
+    plate: drv?.plate ?? null,
+    rating: drv?.rating ?? null,
+    reviews: drv?.review_count ?? 0,
+    seatsFree: drv ? Math.max(0, (drv.official_capacity || drv.capacity) - drv.occupancy) : null,
+    verified: drv?.verified ?? false,
+    route: {
+      schoolName: base?.school_name ?? null,
+      hasSchool: base?.school_lat != null,
+      hasHome: base?.home_lat != null,
+    },
+  };
+}
+
+/** Deterministic Traccar setup text (fallback when the AI is unavailable). */
+function traccarSetupText(name: string, token: string | null, lang: "en" | "ur"): string {
   const serverUrl = `${SITE_URL}/api/track`;
-
   if (!token) {
     return lang === "ur"
-      ? `سلام ${driver.name}! آپ کا ٹریکنگ ٹوکن ابھی تیار نہیں۔ براہ کرم ویب ایپ میں 'Route' صفحہ کھولیں۔`
-      : `Hi ${driver.name}! Your tracking token isn't set up yet. Open the Route page in the web app to generate it.`;
+      ? `سلام ${name}! آپ کا ٹریکنگ ٹوکن ابھی تیار نہیں۔ براہ کرم ویب ایپ میں 'Route' صفحہ کھولیں۔`
+      : `Hi ${name}! Your tracking token isn't set up yet. Open the Route page in the web app to generate it.`;
   }
-
   if (lang === "ur") {
     return (
-      `🚐 سلام ${driver.name}! بیک گراؤنڈ میں لوکیشن شیئر کرنے کے لیے Traccar Client ایپ استعمال کریں:\n\n` +
+      `🚐 سلام ${name}! بیک گراؤنڈ میں لوکیشن شیئر کرنے کے لیے Traccar Client ایپ استعمال کریں:\n\n` +
       `1. ایپ انسٹال کریں: ${TRACCAR_APP_URL}\n` +
       `2. Server URL: ${serverUrl}\n` +
       `3. Device identifier: ${token}\n` +
-      `4. Frequency ~30s رکھیں اور Service ON کر دیں۔\n\n` +
+      `4. Distance = 0 اور Frequency ~60s رکھیں، پھر Service ON کر دیں۔\n\n` +
       `اس کے بعد آپ کی وین کی لوکیشن خود بخود اپڈیٹ ہوتی رہے گی۔`
     );
   }
   return (
-    `🚐 Hi ${driver.name}! Share your van's live location hands-free with the Traccar Client app:\n\n` +
+    `🚐 Hi ${name}! Share your van's live location hands-free with the Traccar Client app:\n\n` +
     `1. Install: ${TRACCAR_APP_URL}\n` +
     `2. Server URL: ${serverUrl}\n` +
     `3. Device identifier: ${token}\n` +
-    `4. Set frequency ~30s and turn the Service ON.\n\n` +
+    `4. Set Distance to 0 and Frequency to ~60s, then turn the Service ON.\n\n` +
     `Your van location then updates automatically in the background.`
   );
 }
