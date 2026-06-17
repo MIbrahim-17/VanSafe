@@ -17,6 +17,8 @@ import type { BaseRoute, Child, Driver, RoutePeriod, TrackingSession } from "@/l
  * the destination. Recipients are the children present today.
  */
 
+export const dynamic = "force-dynamic";
+
 type Admin = ReturnType<typeof createAdminClient>;
 
 const ARRIVE_RADIUS_M = 200;
@@ -38,11 +40,40 @@ function parseTimestamp(raw: string | null): string | undefined {
   return Number.isNaN(t) ? undefined : new Date(t).toISOString();
 }
 
+/**
+ * Read OsmAnd params from the query string AND (for POST) the body, since
+ * Traccar Client can put them in either depending on version/config.
+ */
+async function readParams(req: Request): Promise<URLSearchParams> {
+  const params = new URLSearchParams(new URL(req.url).searchParams);
+  if (req.method !== "POST") return params;
+  try {
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("form-data") || ct.includes("x-www-form-urlencoded")) {
+      const form = await req.formData();
+      form.forEach((v, k) => {
+        if (!params.has(k)) params.set(k, String(v));
+      });
+    } else {
+      const text = await req.text();
+      if (text) {
+        new URLSearchParams(text).forEach((v, k) => {
+          if (!params.has(k)) params.set(k, v);
+        });
+      }
+    }
+  } catch {
+    /* no/unsupported body */
+  }
+  return params;
+}
+
 async function handle(req: Request): Promise<Response> {
-  const q = new URL(req.url).searchParams;
+  const q = await readParams(req);
   const token = q.get("id");
   const lat = Number(q.get("lat"));
   const lng = Number(q.get("lon"));
+  console.log(`[track] ${req.method} id=${token ?? "-"} lat=${q.get("lat") ?? "-"} lon=${q.get("lon") ?? "-"}`);
   if (!token || !Number.isFinite(lat) || !Number.isFinite(lng)) {
     return new Response("id, lat, lon required", { status: 400 });
   }
@@ -54,16 +85,21 @@ async function handle(req: Request): Promise<Response> {
     .eq("track_token", token)
     .maybeSingle();
   const driver = driverRow as Pick<Driver, "id"> | null;
-  if (!driver) return new Response("Unknown device", { status: 401 });
+  if (!driver) {
+    console.warn(`[track] unknown device token: ${token}`);
+    return new Response("Unknown device", { status: 401 });
+  }
   const driverId = driver.id;
 
   const createdAt = parseTimestamp(q.get("timestamp"));
-  await admin.from("locations").insert({
+  const { error: insErr } = await admin.from("locations").insert({
     driver_id: driverId,
     lat,
     lng,
     ...(createdAt ? { created_at: createdAt } : {}),
   });
+  if (insErr) console.error(`[track] insert failed:`, insErr.message);
+  else console.log(`[track] stored ping for driver ${driverId} @ ${lat},${lng}`);
 
   const today = new Date().toISOString().slice(0, 10);
   const period = inferPeriod();
