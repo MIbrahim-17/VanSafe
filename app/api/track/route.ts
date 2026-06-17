@@ -31,20 +31,10 @@ function inferPeriod(): RoutePeriod {
   return pktHour < 12 ? "morning" : "afternoon";
 }
 
-/** Parse the OsmAnd `timestamp` (unix seconds) into an ISO string, if valid. */
-function parseTimestamp(raw: string | null): string | undefined {
-  if (!raw) return undefined;
-  const n = Number(raw);
-  if (Number.isFinite(n) && n > 0) return new Date(n * 1000).toISOString();
-  const t = Date.parse(raw);
-  return Number.isNaN(t) ? undefined : new Date(t).toISOString();
-}
-
 interface Ping {
   id: string | null;
   lat: number;
   lng: number;
-  timestamp: string | null;
   debug: string;
 }
 
@@ -72,7 +62,6 @@ async function readPing(req: Request): Promise<Ping> {
   let id: unknown = qp.get("id");
   let lat: unknown = qp.get("lat");
   let lon: unknown = qp.get("lon");
-  let ts: unknown = qp.get("timestamp");
   let debug = "src=query";
 
   if (req.method === "POST" && (id == null || lat == null || lon == null)) {
@@ -89,13 +78,11 @@ async function readPing(req: Request): Promise<Ping> {
         id = id ?? j.id;
         lat = lat ?? j.lat;
         lon = lon ?? j.lon;
-        ts = ts ?? j.ts;
       } catch {
         const bp = new URLSearchParams(raw);
         id = id ?? bp.get("id");
         lat = lat ?? bp.get("lat");
         lon = lon ?? bp.get("lon");
-        ts = ts ?? bp.get("timestamp");
       }
     }
   }
@@ -106,7 +93,6 @@ async function readPing(req: Request): Promise<Ping> {
     // rejected by the isFinite check below instead of inserting a fake (0,0).
     lat: lat != null ? Number(lat) : NaN,
     lng: lon != null ? Number(lon) : NaN,
-    timestamp: ts != null ? String(ts) : null,
     debug,
   };
 }
@@ -138,12 +124,15 @@ async function handle(req: Request): Promise<Response> {
   }
   const driverId = driver.id;
 
-  const createdAt = parseTimestamp(ping.timestamp);
+  // Store the server receive time (DB default now()), not the device GPS-fix
+  // timestamp. A stationary phone returns a cached fix with a frozen timestamp,
+  // so trusting it would peg every ping to the same "X mins ago" and sort rows
+  // out of order. The web path (/api/locations) defaults to now() too — keep
+  // both consistent so "mins ago" / No-Signal reflect when we last heard a ping.
   const { error: insErr } = await admin.from("locations").insert({
     driver_id: driverId,
     lat,
     lng,
-    ...(createdAt ? { created_at: createdAt } : {}),
   });
   if (insErr) console.error(`[track] insert failed:`, insErr.message);
   else console.log(`[track] stored ping for driver ${driverId} @ ${lat},${lng}`);
