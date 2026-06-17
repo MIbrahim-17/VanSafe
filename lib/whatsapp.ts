@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { interpretWhatsApp, summarizeReviews, answerBotQuestion } from "@/lib/gemini";
+import { assistantReply, onboardingReply, summarizeReviews, type ChatMessage } from "@/lib/gemini";
 import { reverseGeocode } from "@/lib/geocode";
 import { estimateEta } from "@/lib/eta";
 import { googleMapsLink, relativeTime } from "@/lib/utils";
@@ -126,16 +126,22 @@ function digits(n: string) {
 /**
  * Core inbound logic, shared by the Twilio webhook and the in-app simulator.
  *
- * Identifies the sender, classifies intent (AI + rule fallback), and replies.
- * To stay robust in a stateless channel (WhatsApp sends no history), it never
- * asks "which child?" — when a child isn't named it answers for ALL linked
- * children. Fixed intents are answered deterministically; anything else is
- * handled by the OpenRouter (Gemini) free-form answerer over the live data, with
- * a deterministic fallback so it always replies.
+ * AI-first: the assistant (OpenRouter / Gemini 2.5 Flash) composes every reply.
+ *  - Registered parent: we gather their live van data (location, ETA, driver,
+ *    reviews) and a few prior turns, then let the model answer naturally and
+ *    guide them on using VanSafe.
+ *  - Registered driver: returns their hands-free Traccar setup.
+ *  - Unregistered: the model gives VanSafe onboarding (how/why to sign up).
+ *
+ * Short conversation memory (last ~2 exchanges per sender) makes follow-ups work
+ * without asking "which child?". A deterministic reply is used only when the AI
+ * is unavailable (no key / call fails), so the bot always responds.
  */
 export async function handleIncoming(from: string, text: string): Promise<string> {
   const admin = createAdminClient();
   const fromDigits = digits(from);
+  const lang = detectLang(text); // for deterministic fallback text only
+  const history = await loadHistory(admin, fromDigits);
 
   const { data: profiles } = await admin.from("profiles").select("*").eq("role", "parent");
   const parent = (profiles as Profile[] | null)?.find((p) => {
@@ -143,79 +149,89 @@ export async function handleIncoming(from: string, text: string): Promise<string
     return d && (d === fromDigits || d.endsWith(fromDigits.slice(-9)) || fromDigits.endsWith(d.slice(-9)));
   });
 
-  const { intent, lang } = await interpretWhatsApp(text);
-
+  // --- Not a registered parent: driver setup, else AI onboarding ---
   if (!parent) {
-    // A driver messaging the bot gets their hands-free location-sharing setup.
     const driverReply = await driverSetupReply(admin, fromDigits, lang);
-    if (driverReply) return driverReply;
-
-    return lang === "ur"
-      ? `سلام! یہ نمبر VanSafe پر رجسٹرڈ نہیں ہے۔ سائن اپ کریں: ${SIGNUP_URL}`
-      : `Hi! This number isn't registered on VanSafe yet. Sign up here to track your child's van: ${SIGNUP_URL}`;
+    if (driverReply) {
+      await saveTurn(admin, fromDigits, text, driverReply);
+      return driverReply;
+    }
+    const ai = await onboardingReply(text, history);
+    const reply =
+      ai ??
+      (lang === "ur"
+        ? `سلام! یہ نمبر VanSafe پر رجسٹرڈ نہیں ہے۔ اپنے بچے کی وین ٹریک کرنے کے لیے سائن اپ کریں: ${SIGNUP_URL}`
+        : `Hi! This number isn't registered on VanSafe yet. Sign up to track your child's van: ${SIGNUP_URL}`);
+    await saveTurn(admin, fromDigits, text, reply);
+    return reply;
   }
 
-  if (intent === "help") {
-    return lang === "ur"
-      ? 'آپ پوچھ سکتے ہیں: "وین کہاں ہے؟"، "وین کب اسکول پہنچے گی؟"، یا "ڈرائیور کے بارے میں بتائیں" — میں فوراً جواب دوں گا۔'
-      : 'You can ask me: "where is the van?", "when will it reach school?", or "tell me about the driver" — and I\'ll reply with live info.';
-  }
-  if (intent === "greeting") {
-    return lang === "ur"
-      ? `سلام ${parent.name}! میں وین کی لوکیشن، اسکول پہنچنے کا وقت، اور ڈرائیور کی تفصیلات بتا سکتا ہوں۔`
-      : `Hello ${parent.name}! I can share the van's live location, its ETA to school, and the driver's details. Just ask.`;
-  }
-
+  // --- Registered parent: assemble live data and let the assistant answer ---
   const { data: kidsData } = await admin
     .from("children")
     .select("*")
     .eq("parent_id", parent.id)
     .order("created_at");
   const children = (kidsData as Child[] | null) ?? [];
-
-  if (children.length === 0) {
-    return lang === "ur"
-      ? "آپ نے ابھی کوئی بچہ شامل نہیں کیا۔ ایپ میں جا کر بچہ شامل کریں اور وین منتخب کریں۔"
-      : "You haven't added any children yet. Open the VanSafe app to add a child and choose a van.";
-  }
-
   const linked = children.filter((c) => c.driver_id);
-  if (linked.length === 0) {
-    return lang === "ur"
-      ? "آپ کے کسی بچے کی ابھی کوئی وین منتخب نہیں۔ ایپ میں جا کر وین منتخب کریں۔"
-      : "None of your children are linked to a van yet. Open the app to choose a van.";
-  }
 
-  // If a child is named (fuzzy, so typos like "Ayehsa" still match), answer for
-  // them; otherwise answer for every linked child — no lossy "which child?".
-  const named = matchChildren(children, text);
-  let targets: Child[];
-  if (named.length) {
-    const namedLinked = named.filter((c) => c.driver_id);
-    if (!namedLinked.length) {
-      return lang === "ur"
-        ? `${named[0].name} کی ابھی کوئی وین منتخب نہیں۔ ایپ میں جا کر وین منتخب کریں۔`
-        : `${named[0].name} isn't linked to a van yet. Open the app to choose one.`;
-    }
-    targets = namedLinked;
-  } else {
-    targets = linked;
-  }
-
-  const wantsHome = /home|ghar|گھر|واپس|house|wapas/.test(text.toLowerCase());
+  // Prefer a named child (fuzzy, so "Ayehsa" still matches); else all linked.
+  const named = matchChildren(children, text).filter((c) => c.driver_id);
+  const targets = named.length ? named : linked;
   const snaps = await Promise.all(targets.map((c) => snapshot(admin, c)));
 
-  switch (intent) {
-    case "where":
-    case "status":
-      return (await Promise.all(snaps.map((s) => locationLine(s, lang)))).join("\n\n");
-    case "eta":
-      return (await Promise.all(snaps.map((s) => etaLine(s, wantsHome, lang)))).join("\n\n");
-    case "driver_info":
-      return (await Promise.all(snaps.map((s) => driverLine(s, lang)))).join("\n\n");
-    default:
-      return smartAnswer(text, snaps, lang);
-  }
+  const context = await buildContext(admin, parent, children, snaps);
+  const ai = await assistantReply(text, context, history);
+  const reply = ai ?? (await deterministicFallback(text, snaps, linked, lang));
+
+  await saveTurn(admin, fromDigits, text, reply);
+  return reply;
+}
+
+// ---------------------------------------------------------------------------
+// Conversation memory (very short, to keep token use low)
+// ---------------------------------------------------------------------------
+
+const HISTORY_TURNS = 4; // last ~2 exchanges sent to the model
+const HISTORY_KEEP = 10; // rows retained per sender before pruning
+
+/** Last few messages for a sender, oldest-first, as model messages. */
+async function loadHistory(admin: Admin, sender: string): Promise<ChatMessage[]> {
+  const { data } = await admin
+    .from("bot_conversations")
+    .select("role,content")
+    .eq("sender", sender)
+    .order("created_at", { ascending: false })
+    .limit(HISTORY_TURNS);
+  const rows = (data as { role: string; content: string }[] | null) ?? [];
+  return rows
+    .reverse()
+    .map((r) => ({ role: r.role === "assistant" ? "assistant" : "user", content: r.content }));
+}
+
+/** Append this turn (user + assistant) and prune old rows for the sender. */
+async function saveTurn(admin: Admin, sender: string, userText: string, reply: string): Promise<void> {
+  await admin.from("bot_conversations").insert([
+    { sender, role: "user", content: userText },
+    { sender, role: "assistant", content: reply },
+  ]);
+  const { data: old } = await admin
+    .from("bot_conversations")
+    .select("id")
+    .eq("sender", sender)
+    .order("created_at", { ascending: false })
+    .range(HISTORY_KEEP, 1000);
+  const ids = ((old as { id: string }[] | null) ?? []).map((o) => o.id);
+  if (ids.length) await admin.from("bot_conversations").delete().in("id", ids);
+}
+
+/** Lightweight language guess (no AI call) for fallback text only. */
+function detectLang(text: string): "en" | "ur" {
+  const t = text.toLowerCase();
+  return /[؀-ۿ]/.test(text) ||
+    /kahan|kidhar|wapas|salam|kaha|kitni|kab|kaisa|ghar|gari|nahi|hai|pohanch/.test(t)
+    ? "ur"
+    : "en";
 }
 
 // ---------------------------------------------------------------------------
@@ -369,24 +385,47 @@ async function driverLine(s: Snapshot, lang: "en" | "ur"): Promise<string> {
     : `🧑‍✈️ ${s.driverName} (${s.child.name}'s van)\nVehicle: ${vehicle}${d.plate ? ` (${d.plate})` : ""}\nRating: ${d.rating}/5 (${d.review_count} reviews) · ${verified}\nSeats free: ${seatsFree}\n📝 ${summary}`;
 }
 
-/** Free-form questions: assemble live context and let Gemini answer; fall back. */
-async function smartAnswer(text: string, snaps: Snapshot[], lang: "en" | "ur"): Promise<string> {
-  const context = await Promise.all(
+/**
+ * Assemble everything the assistant may need to answer a parent: their children
+ * and link status, plus per-van live location, ETA to school AND home, driver
+ * details, and a few recent reviews. Passed to the model as JSON context.
+ */
+async function buildContext(
+  admin: Admin,
+  parent: Profile,
+  children: Child[],
+  snaps: Snapshot[]
+) {
+  const vans = await Promise.all(
     snaps.map(async (s) => {
       const d = s.driver;
-      let etaSchoolMin: number | null = null;
       let place: string | null = null;
+      let etaToSchoolMin: number | null = null;
+      let etaToHomeMin: number | null = null;
       if (s.latest) {
-        place = await reverseGeocode(s.latest.lat, s.latest.lng);
-        if (s.base?.school_lat != null && s.base?.school_lng != null) {
-          const eta = await estimateEta(
-            { lat: s.latest.lat, lng: s.latest.lng },
-            { lat: s.base.school_lat, lng: s.base.school_lng },
-            { traffic: true }
-          );
-          etaSchoolMin = Math.max(1, Math.round(eta.durationTrafficS / 60));
-        }
+        const here = { lat: s.latest.lat, lng: s.latest.lng };
+        const [pl, school, home] = await Promise.all([
+          reverseGeocode(s.latest.lat, s.latest.lng),
+          s.base?.school_lat != null && s.base?.school_lng != null
+            ? estimateEta(here, { lat: s.base.school_lat, lng: s.base.school_lng }, { traffic: true })
+            : Promise.resolve(null),
+          s.base?.home_lat != null && s.base?.home_lng != null
+            ? estimateEta(here, { lat: s.base.home_lat, lng: s.base.home_lng }, { traffic: true })
+            : Promise.resolve(null),
+        ]);
+        place = pl;
+        if (school) etaToSchoolMin = Math.max(1, Math.round(school.durationTrafficS / 60));
+        if (home) etaToHomeMin = Math.max(1, Math.round(home.durationTrafficS / 60));
       }
+
+      const { data: reviewRows } = await admin
+        .from("reviews")
+        .select("rating,comment")
+        .eq("driver_id", s.child.driver_id as string)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const recentReviews = (reviewRows as Pick<Review, "rating" | "comment">[] | null) ?? [];
+
       return {
         child: s.child.name,
         school: s.child.school,
@@ -399,6 +438,7 @@ async function smartAnswer(text: string, snaps: Snapshot[], lang: "en" | "ur"): 
               rating: d.rating,
               reviews: d.review_count,
               seatsFree: Math.max(0, (d.official_capacity || d.capacity) - d.occupancy),
+              recentReviews,
             }
           : null,
         location: s.latest
@@ -408,15 +448,51 @@ async function smartAnswer(text: string, snaps: Snapshot[], lang: "en" | "ur"): 
               mapsLink: googleMapsLink(s.latest.lat, s.latest.lng),
             }
           : null,
-        etaToSchoolMin: etaSchoolMin,
+        etaToSchoolMin,
+        etaToHomeMin,
       };
     })
   );
 
-  const ai = await answerBotQuestion(text, context, lang);
-  if (ai) return ai;
+  return {
+    parent: parent.name,
+    children: children.map((c) => ({
+      name: c.name,
+      school: c.school,
+      linkedToVan: Boolean(c.driver_id),
+    })),
+    vans,
+  };
+}
 
-  // Deterministic fallback (no AI key / call failed): answer with locations.
+/**
+ * Used only when the AI is unavailable (no key / call failed). Answers from the
+ * live data with simple rules so the bot still replies usefully.
+ */
+async function deterministicFallback(
+  text: string,
+  snaps: Snapshot[],
+  linked: Child[],
+  lang: "en" | "ur"
+): Promise<string> {
+  if (!snaps.length) {
+    if (!linked.length) {
+      return lang === "ur"
+        ? "آپ کے کسی بچے کی ابھی کوئی وین منتخب نہیں۔ ایپ میں جا کر وین منتخب کریں۔"
+        : "None of your children are linked to a van yet. Open the app to choose a van.";
+    }
+    return lang === "ur"
+      ? "میں وین کی لوکیشن، پہنچنے کا وقت، اور ڈرائیور کی تفصیلات بتا سکتا ہوں۔"
+      : "I can share the van's live location, its ETA, and the driver's details. Just ask.";
+  }
+
+  const t = text.toLowerCase();
+  if (/driver|rating|review|kaisa|profile|verified|kaun/.test(t))
+    return (await Promise.all(snaps.map((s) => driverLine(s, lang)))).join("\n\n");
+  if (/eta|how long|when will|kitni der|kitne|kab|reach|time|pohanch/.test(t)) {
+    const wantsHome = /home|ghar|گھر|واپس|house|wapas/.test(t);
+    return (await Promise.all(snaps.map((s) => etaLine(s, wantsHome, lang)))).join("\n\n");
+  }
   const lines = await Promise.all(snaps.map((s) => locationLine(s, lang)));
   const hint =
     lang === "ur"

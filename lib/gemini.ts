@@ -1,17 +1,31 @@
 import type { DriverWithProfile, MatchResult, Review } from "@/lib/types";
 
 /**
- * AI calls go through OpenRouter's OpenAI-compatible chat API, using Gemini 2.0
+ * AI calls go through OpenRouter's OpenAI-compatible chat API, using Gemini 2.5
  * Flash by default. Every feature degrades to a deterministic rule-based
- * fallback when OPENROUTER_API_KEY is missing or a call fails, so the app always
- * works offline. Override the model with OPENROUTER_MODEL if needed.
+ * fallback when no API key is set or a call fails, so the app always works
+ * offline. Override the model with OPENROUTER_MODEL if needed.
  */
-const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
+const MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://van-safe.vercel.app";
 
-/** Send a single prompt to the model; returns the text, or null on any failure. */
-async function chat(prompt: string): Promise<string | null> {
-  const key = process.env.OPENROUTER_API_KEY;
+/** OpenRouter key, accepting either spelling of the env var. */
+function apiKey(): string | undefined {
+  return process.env.OPENROUTER_API_KEY || process.env.OPEN_ROUTER_API_KEY;
+}
+
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** Send a full message list (system + history + user) to the model. */
+async function chatMessages(
+  messages: ChatMessage[],
+  opts: { temperature?: number } = {}
+): Promise<string | null> {
+  const key = apiKey();
   if (!key) return null;
   try {
     const res = await fetch(OPENROUTER_URL, {
@@ -20,13 +34,13 @@ async function chat(prompt: string): Promise<string | null> {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
         // Optional attribution headers OpenRouter recommends.
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://vansafe.app",
+        "HTTP-Referer": SITE,
         "X-Title": "VanSafe",
       },
       body: JSON.stringify({
         model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
+        messages,
+        temperature: opts.temperature ?? 0.3,
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
@@ -40,6 +54,11 @@ async function chat(prompt: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Send a single prompt to the model; returns the text, or null on any failure. */
+async function chat(prompt: string): Promise<string | null> {
+  return chatMessages([{ role: "user", content: prompt }]);
 }
 
 /** Pull the first JSON value out of a model response (handles ```json fences). */
@@ -276,4 +295,62 @@ function ruleIntent(text: string): { intent: WaIntent; lang: "en" | "ur" } {
 
 function capitalise(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ---------------------------------------------------------------------------
+// 5. Conversational assistant (WhatsApp + in-app simulator)
+// ---------------------------------------------------------------------------
+
+const ASSISTANT_SYSTEM = `You are VanSafe's assistant on WhatsApp, chatting with a REGISTERED parent in Pakistan.
+VanSafe lets parents track their child's school van live, get safety alerts (departed/arrived, unusual route, traffic delays), and pick verified, parent-reviewed drivers.
+
+Your job:
+- Answer the parent's questions about their child's van using ONLY the live data provided below (current location, ETA to school/home, driver details, ratings, recent reviews).
+- When asked, guide them on how to use VanSafe: tracking the van, understanding alerts, choosing or reviewing a driver, marking a child absent.
+
+Rules:
+- Be warm and concise — 1 to 4 short sentences. This is WhatsApp, never an essay.
+- Reply in the SAME language the parent used: English, Urdu, or roman Urdu.
+- When the answer is about where the van is, include the Google Maps link from the data.
+- Never invent facts or numbers. If the data does not contain the answer, say so plainly and mention what you can help with: live location, ETA to school/home, and driver details.`;
+
+/** Compose a reply for a registered parent over their live van data + short history. */
+export async function assistantReply(
+  question: string,
+  context: unknown,
+  history: ChatMessage[]
+): Promise<string | null> {
+  const messages: ChatMessage[] = [
+    { role: "system", content: ASSISTANT_SYSTEM },
+    { role: "system", content: `Live data (JSON):\n${JSON.stringify(context)}` },
+    ...history,
+    { role: "user", content: question },
+  ];
+  return chatMessages(messages);
+}
+
+const ONBOARDING_SYSTEM = `You are VanSafe's assistant on WhatsApp, talking to someone whose number is NOT registered on VanSafe yet.
+VanSafe is a school-van safety platform for parents in Pakistan: track your child's van live on a map, get automatic departed/arrived and safety alerts, and pick verified, parent-reviewed drivers.
+
+Your ONLY job is onboarding:
+- Explain briefly how to get started: sign up at ${SITE}/register, add your child, then choose a van.
+- When asked, explain how VanSafe works and why to use it (live tracking, automatic safety alerts, verified drivers, peace of mind).
+
+Rules:
+- Be warm and concise — 1 to 4 short sentences. WhatsApp style.
+- Reply in the SAME language used: English, Urdu, or roman Urdu.
+- Make signing up easy: include the link ${SITE}/register when relevant.
+- Stay strictly on VanSafe onboarding. If asked anything off-topic, politely say you can only help with getting started on VanSafe, and steer back to signing up.`;
+
+/** Compose an onboarding reply for an unregistered sender + short history. */
+export async function onboardingReply(
+  question: string,
+  history: ChatMessage[]
+): Promise<string | null> {
+  const messages: ChatMessage[] = [
+    { role: "system", content: ONBOARDING_SYSTEM },
+    ...history,
+    { role: "user", content: question },
+  ];
+  return chatMessages(messages);
 }

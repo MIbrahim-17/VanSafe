@@ -163,6 +163,18 @@ create table if not exists public.route_logs (
 );
 create index if not exists route_logs_driver_date on public.route_logs (driver_id, date desc);
 
+-- bot_conversations: very short per-sender chat memory for the WhatsApp / in-app
+-- assistant so multi-turn follow-ups work. `sender` is the digits of a WhatsApp
+-- number (or a simulator id). Pruned to the last few rows per sender in code.
+create table if not exists public.bot_conversations (
+  id uuid primary key default gen_random_uuid(),
+  sender text not null,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists bot_conversations_sender on public.bot_conversations (sender, created_at desc);
+
 -- ---------------------------------------------------------------------------
 -- Rating recompute trigger
 -- ---------------------------------------------------------------------------
